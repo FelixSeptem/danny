@@ -114,7 +114,7 @@ Each finding uses the same structured record:
 ```markdown
 ## BAYMAX-YYYY-MM-DD-short-slug
 
-- Status: observed | workaround | upstream-issue-filed | fixed-upstream | closed
+- Status: observed | upstream-issue-filed | blocked-upstream | fixed-upstream | closed
 - Dependency version/commit: exact module version or commit
 - Discovered in: application workflow and test name
 - Capability: runtime, tool, subagent, teams, workflow, mailbox, scheduler, context, memory, or diagnostics
@@ -123,11 +123,11 @@ Each finding uses the same structured record:
 - Minimal reproduction: exact command, fixture, or test case
 - Evidence: logs, event timeline, correlation IDs, and relevant output
 - Impact: affected user flow and severity
-- Workaround: local compatibility code or configuration, if any
+- Local handling: diagnostics or a test-only reproduction aid. Production workarounds are not permitted for findings that require an upstream behavior change.
 - Proposed upstream change: smallest maintainable fix or optimization
 - Validation: regression test and expected result after the fix
 - Upstream reference: issue, PR, or discussion URL when available
-- Removal condition: how and when the workaround can be deleted
+- Unblock condition: exact upstream version or commit and verification required before dependent work resumes
 ```
 
 The implementation workflow is:
@@ -135,12 +135,13 @@ The implementation workflow is:
 1. capture the exact dependency version and failing scenario;
 2. reduce the behavior to a deterministic fixture or integration test;
 3. add a record to the dependency-specific findings document;
-4. classify the response as a local adapter workaround, configuration mitigation, or upstream fix request;
-5. keep the regression test in this project even after an upstream issue is filed;
-6. when upgrading Baymax or Stele, rerun the affected fixtures and update the record to `fixed-upstream` or `closed`;
-7. remove compatibility code only after the upstream behavior is verified in CI or the documented replacement version.
+4. decide whether the behavior is an upstream defect or an upstream capability/optimization required by the current task;
+5. when an upstream change is required, mark the finding and every dependent implementation task `blocked-upstream`; do not merge a production workaround or silently weaken the requirement;
+6. keep the deterministic regression fixture and upstream-facing explanation in this project while the task is blocked;
+7. after the upstream fix is available in a released version or an explicitly pinned, reviewable commit, rerun the fixture, update the record to `fixed-upstream`, and unblock the dependent tasks;
+8. close the finding only after the real integration path is verified against the repaired dependency.
 
-Findings are linked from the relevant integration module and release notes when they affect behavior. A discovery is not considered complete if the code has a workaround but the reproduction and upstream-facing explanation are missing. The documents are intentionally separate so Baymax and Stele maintainers can consume only the findings for their repository.
+Findings are linked from the relevant integration module, blocked task, and release notes when they affect behavior. A discovery is not considered complete until the reproduction, upstream-facing explanation, blocked task reference, and unblocking condition are present. The documents are intentionally separate so Baymax and Stele maintainers can consume only the findings for their repository.
 
 ### Required integration evidence
 
@@ -622,14 +623,14 @@ The implementation is accepted only when these scenarios work in a clean Docker 
 11. Submit equivalent low, medium, and high complexity task profiles and verify the planner chooses `direct`, bounded `subagent_fanout` or `team_parallel`, and checkpointed `workflow`/`mailbox_async` respectively, with an auditable rationale.
 12. Force a discovery-time complexity increase, verify a new plan version is created at a safe point, completed child results are reused, remaining budget is recalculated, and no new write authority is granted implicitly.
 13. Pause a run for `input_required` or `approval_required`, resume it from the stored checkpoint, and verify Baymax run IDs, plan version, Context Assembler projection digests, and Stele references remain correlated.
-14. Introduce a controlled dependency failure or behavior mismatch, verify a deterministic regression fixture and a complete record in the corresponding Baymax or Stele findings document, then verify the documented workaround and upstream removal condition.
+14. Introduce a controlled dependency failure or behavior mismatch, verify a deterministic regression fixture and a complete record in the corresponding Baymax or Stele findings document, then verify that the dependent implementation task is blocked until the upstream repair is available.
 
 Verification is layered:
 
 - unit tests for policy-controlled tool registration, task transitions, cron handling, lease recovery, storage repositories, Stele mapping, and compilation-plan validation;
 - integration tests for Baymax + Stele + KnowledgeStore, including Context Assembler projection, handoff, budget-derived view, mailbox, teams, and subagent paths;
 - planner and harness tests for deterministic mode selection, admission, plan-versioned replanning, pause/resume, commit gates, and Baymax terminal-event ownership;
-- dependency compatibility tests tied to every active Baymax/Stele finding, with version-aware upgrade checks and evidence that obsolete workarounds can be removed safely;
+- dependency compatibility tests tied to every active Baymax/Stele finding, with version-aware upgrade checks and evidence that blocked tasks unblock only after the upstream repair is verified;
 - Docker end-to-end tests for API chat, compile, task, schedule, notification, and storage switching;
 - manual browser checks for streaming output, citations, artifact browsing, tasks, schedules, and notifications.
 
