@@ -43,6 +43,14 @@ testdata/fixtures/
 scripts/
 ```
 
+The module identity is fixed as follows:
+
+```go
+module github.com/FelixSeptem/danny
+```
+
+All internal package imports must use this module path prefix. The module path is part of the repository bootstrap contract and must be verified by the foundation checks.
+
 `internal/agent`, `internal/context`, and the other domain packages receive only package documentation or minimal interfaces in this milestone. Runtime behavior is added by later OpenSpec changes.
 
 **Alternative considered:** wait to create package boundaries until the first runtime feature. Rejected because dependency ownership and direct provider usage would then be decided opportunistically inside feature code.
@@ -117,7 +125,7 @@ The boundary check uses repository text scanning with an allowlist for `internal
 
 The implementation of this change is limited to these files and directories:
 
-- `go.mod`, `go.sum`: module identity and exact Baymax/Stele dependency pins.
+- `go.mod`, `go.sum`: the exact module identity `github.com/FelixSeptem/danny` and exact Baymax/Stele dependency pins.
 - `internal/config/config.go`, `internal/config/config_test.go`: typed parsing, defaults, and validation.
 - `internal/security/listener_policy.go`, `internal/security/listener_policy_test.go`: loopback and authenticated-mode policy.
 - `internal/agent/doc.go`, `internal/context/doc.go`, `internal/knowledge/doc.go`, `internal/tasks/doc.go`, `internal/storage/doc.go`, `internal/server/doc.go`: package ownership markers for the roadmap boundaries.

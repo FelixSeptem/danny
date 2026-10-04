@@ -5,6 +5,7 @@ The repository currently contains only a minimal README, so there is no reproduc
 ## What Changes
 
 - Create the initial Go project structure for the application domains and service entry points.
+- Establish `github.com/FelixSeptem/danny` as the exact Go module path used by the repository and all internal package imports.
 - Define validated configuration for the OpenAI-compatible model endpoint, pinned Baymax and Stele dependencies, storage mode, data directories, scheduler settings, listener address, and Docker profiles.
 - Enforce a loopback-only default for the unauthenticated local workbench; reject non-loopback binding unless a future authenticated mode is explicitly enabled.
 - Add separate Baymax and Stele upstream findings documents with the `blocked-upstream` lifecycle and structured reproduction records.

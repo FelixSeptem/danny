@@ -1,6 +1,6 @@
 ## 1. Repository and module bootstrap
 
-- [ ] 1.1 Create `go.mod`, the roadmap package directories, and package documentation markers; verify `go list ./...` resolves every package without application runtime behavior.
+- [ ] 1.1 Create `go.mod` with the exact module path `github.com/FelixSeptem/danny`, the roadmap package directories, and package documentation markers; verify `go list -m` reports that path and `go list ./...` resolves every package without application runtime behavior.
 - [ ] 1.2 Add the exact Baymax and Stele module dependencies to `go.mod`, generate `go.sum`, and record the resolved versions or commits; verify a clean dependency download/build reproduces the same module graph.
 - [ ] 1.3 Add the initial `cmd/personal-agent` configuration-validation entry point; verify invalid configuration exits before creating listeners or workers.
 
