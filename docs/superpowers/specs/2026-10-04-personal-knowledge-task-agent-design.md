@@ -72,6 +72,49 @@ The codebase is organized into focused modules:
 
 The Baymax integration is intentionally library-first. The application owns model credentials, HTTP persistence, domain authorization, and the mapping from product operations to Baymax runs. Baymax owns Agent execution, child-run limits, team aggregation, mailbox lifecycle, scheduler coordination, and structured run events.
 
+## Baymax deep-integration contract
+
+Baymax is a required runtime dependency and the core mechanism by which this project validates real Agent behavior. The implementation must not reduce Baymax to an OpenAI-compatible model client, a prompt helper, or an optional adapter hidden behind an application-owned orchestration loop.
+
+The following product paths must invoke Baymax's actual runtime and orchestration packages:
+
+- interactive Agent execution through Baymax Run/Stream semantics;
+- tool calls and typed tool lifecycle events through Baymax's tool contract;
+- child execution through Baymax composer/subagent dispatch with parent-child budgets and depth limits;
+- parallel, serial, and vote aggregation through Baymax `teams`;
+- ordered and checkpointed compilation through Baymax `workflow`;
+- durable cross-process work through Baymax `mailbox` command/event/result envelopes, leases, ack, requeue, and DLQ;
+- timed execution through Baymax `scheduler` lease, retry, QoS, and delayed-dispatch semantics;
+- context projection through Baymax `context/assembler`, including prefix guards, staged disclosure, pressure handling, handoff, and derived budget views;
+- operational evidence through Baymax timeline, diagnostics, and runtime recorder integration.
+
+The application may wrap these APIs with domain services, but it must not create parallel implementations of:
+
+- Agent run or stream loops;
+- subagent lifecycle or parent-child budget accounting;
+- team state, vote resolution, or aggregation counters;
+- mailbox delivery state, consumer lease, retry, or dead-letter transitions;
+- scheduler claim, lease expiry, retry ownership, or delayed dispatch;
+- Context Assembler pressure and handoff state;
+- Baymax terminal outcome or event ownership.
+
+The model provider remains configurable through the selected OpenAI-compatible endpoint, but provider configuration is injected into Baymax's model adapter. The app does not call the provider SDK directly from knowledge, task, scheduler, or Web handlers.
+
+### Required integration evidence
+
+The first implementation is not considered a Baymax integration until the end-to-end evidence includes:
+
+1. a real Baymax parent run with streamed events;
+2. at least one bounded child run created through Baymax dispatch;
+3. a real Baymax team path with parallel or vote aggregation;
+4. a mailbox message that is published, consumed under lease, acknowledged, and requeued or dead-lettered in a failure case;
+5. a scheduled Baymax dispatch that survives worker restart;
+6. a Context Assembler projection and handoff digest attached to parent and child runs;
+7. Baymax timeline/diagnostic records correlated with Stele context and application execution records;
+8. Run and Stream paths that preserve equivalent terminal and aggregation semantics.
+
+These checks are contract tests against the pinned Baymax version and are run with a deterministic fake model plus a live OpenAI-compatible smoke configuration. The fake model verifies orchestration semantics; the live smoke path verifies provider wiring and actual model/tool interaction.
+
 ## Multi-agent collaboration model
 
 The project uses Baymax's orchestration primitives as product behavior. They are not optional wrappers kept for a later scale-out phase.
@@ -90,6 +133,103 @@ Knowledge Coordinator (parent run)
         ├─ workflow: validate → authorize → commit
         └─ mailbox result/event: progress, retry, terminal outcome
 ```
+
+### Dynamic execution planning
+
+Task execution does not select a Baymax orchestration primitive statically. Each user task, compilation request, and scheduled instruction first passes through an `ExecutionPlanner` that chooses the smallest suitable execution shape from the task's observed characteristics.
+
+The planner receives a normalized `TaskProfile`:
+
+- objective and requested outcome;
+- estimated complexity and number of distinct work items;
+- dependency graph and whether work can run independently;
+- evidence breadth, source count, and expected context size;
+- freshness and latency requirements;
+- failure sensitivity and whether partial results are acceptable;
+- required write capabilities and approval requirements;
+- current parent/child budget, concurrency limit, and model availability;
+- whether the task is interactive, scheduled, or a recovery attempt.
+
+It emits a versioned `ExecutionPlan` before dispatch. The plan contains the selected mode, rationale, task decomposition, agent roles, budgets, timeout, retry policy, aggregation rule, write authority, and fallback mode. The plan and its digest are stored in Stele and the application execution record before work starts.
+
+The initial mode set maps directly to Baymax capabilities:
+
+| Mode | Selection signal | Baymax shape |
+|---|---|---|
+| `direct` | Small, single-step, low-risk task with no independent work | One parent Agent run |
+| `subagent_fanout` | A few independent bounded subtasks with one clear owner | Coordinator plus bounded child runs |
+| `team_parallel` | Several peer tasks can run concurrently and partial failure is tolerable | `teams` with `parallel` strategy |
+| `team_vote` | Multiple analyses must choose or validate one result | `teams` with `vote` strategy |
+| `workflow` | Steps have ordering, branching, checkpoints, or a commit gate | Baymax `workflow` |
+| `mailbox_async` | Work may outlive the request, needs durable delivery, or crosses process boundaries | Mailbox command/event/result with leased workers |
+| `scheduled` | Work is triggered by a cron occurrence | Baymax scheduler plus one of the modes above |
+
+Selection is deterministic for equivalent `TaskProfile` inputs. The default planner uses explicit thresholds and constraints; an optional planner Agent may propose a plan for ambiguous tasks, but the proposal is validated against the same domain rules before it can be used. A model cannot grant itself additional write authority, exceed parent budgets, or select a mode that the runtime has disabled.
+
+The planner supports bounded replanning at declared safe points:
+
+- after task decomposition, when the number of discovered work items differs materially from the estimate;
+- after team collection, when evidence conflicts or a required validator is unavailable;
+- before commit, when validation finds unsupported claims or missing sources;
+- after a retryable infrastructure failure, when the original mode cannot make progress.
+
+Replanning creates a new plan version linked to the previous version. It must preserve completed idempotent results, explain the trigger, recalculate remaining budget, and pass authorization again if capabilities become broader. The planner cannot silently switch from read-only to write mode or from interactive execution to a durable background task.
+
+Representative decisions:
+
+- “Remember this preference” → `direct` with a memory write capability.
+- “Compare two concepts from three documents” → `team_parallel`, followed by `team_vote` if claims conflict.
+- “Compile a new document and update cross-document concepts” → `workflow` with section subagents, parallel analysis, citation validation, and an atomic commit step.
+- “Every morning summarize my open tasks” → `scheduled` selecting `subagent_fanout` when task/context reads are independent, or `direct` when the context is small.
+- “Process a large directory and continue after the browser closes” → `mailbox_async` with leased child work and a terminal aggregation event.
+
+### Harness-inspired control loop
+
+The planner is embedded in a harness-like control loop that separates task control from Agent execution. The loop is intentionally explicit so a complex task can be inspected, paused, resumed, or safely replanned.
+
+```text
+request
+  │
+  ▼
+admission and intent normalization
+  │
+  ▼
+TaskProfile + ExecutionPlan v1
+  │
+  ▼
+checkpointed dispatch through Baymax
+  │
+  ├─ subagents / teams / workflow / mailbox
+  ├─ Context Assembler projections per child
+  └─ structured events and tool outcomes
+  │
+  ▼
+observe evidence at safe point
+  │
+  ├─ continue current plan
+  ├─ replan with version v2+
+  └─ pause for user input or authorization
+  │
+  ▼
+validate result and commit domain effects
+```
+
+The harness responsibilities belong to the application `execution` module:
+
+- **Admission:** validate the request, storage/model readiness, policy, write authority, and parent budget before dispatch.
+- **Plan notebook:** persist plan versions, step status, checkpoints, decision rationale, and pending user questions. This is a control record, not a second task state machine.
+- **Execution controller:** instantiate the selected Baymax primitive and pass the plan's bounded child and tool capabilities.
+- **Event stream:** consume Baymax run, team, mailbox, scheduler, and tool events and project them to the Web UI and Stele context.
+- **Safe-point controller:** allow continuation, bounded retry, pause, recovery, or replan only at declared workflow boundaries.
+- **Commit gate:** validate citations, artifact shapes, task transitions, and authorization before applying durable domain changes.
+
+Baymax remains the owner of execution mechanics and terminal run semantics. The harness does not reimplement Baymax's runner, team state machine, mailbox lifecycle, scheduler lease state, or budget accounting. It stores references and control projections that make those facts usable by the product.
+
+The harness supports explicit pause reasons such as `input_required`, `approval_required`, `budget_exhausted`, `provider_unavailable`, and `context_rebuild_required`. A paused run can resume from its last checkpoint with the same plan version, or resume under a new plan version after the planner records the changed assumptions. User approval is required only when a replan expands write scope, external side effects, or execution duration beyond the request's original authority.
+
+### Planner evidence and evaluation
+
+Planner decisions are evaluated against a versioned task corpus rather than judged only by final text. Each case records the expected minimum viable mode, allowed fallbacks, maximum fan-out, budget envelope, and whether a replan is expected. The integration suite verifies that equivalent profiles choose equivalent modes, high-risk tasks do not bypass the commit gate, and a failed child causes the declared retry or fallback behavior.
 
 ### Coordinator
 
@@ -437,11 +577,15 @@ The implementation is accepted only when these scenarios work in a clean Docker 
 8. Compile a document with multiple sections and verify that the parent run fans out bounded `SectionAnalyst` subagents, a team aggregates their findings, the citation validator rejects an unsupported claim, and the final compilation commits only validated artifacts.
 9. Run a knowledge query that requires Stele memory, knowledge navigation, and task state, and verify that mailbox command/event/result records, team aggregation, child budgets, and the final coordinator answer are all correlated by run and task IDs.
 10. Force a transient child failure, verify mailbox requeue and eventual ack, then force repeated failure and verify DLQ state without losing the parent run's terminal outcome.
+11. Submit equivalent low, medium, and high complexity task profiles and verify the planner chooses `direct`, bounded `subagent_fanout` or `team_parallel`, and checkpointed `workflow`/`mailbox_async` respectively, with an auditable rationale.
+12. Force a discovery-time complexity increase, verify a new plan version is created at a safe point, completed child results are reused, remaining budget is recalculated, and no new write authority is granted implicitly.
+13. Pause a run for `input_required` or `approval_required`, resume it from the stored checkpoint, and verify Baymax run IDs, plan version, Context Assembler projection digests, and Stele references remain correlated.
 
 Verification is layered:
 
 - unit tests for policy-controlled tool registration, task transitions, cron handling, lease recovery, storage repositories, Stele mapping, and compilation-plan validation;
 - integration tests for Baymax + Stele + KnowledgeStore, including Context Assembler projection, handoff, budget-derived view, mailbox, teams, and subagent paths;
+- planner and harness tests for deterministic mode selection, admission, plan-versioned replanning, pause/resume, commit gates, and Baymax terminal-event ownership;
 - Docker end-to-end tests for API chat, compile, task, schedule, notification, and storage switching;
 - manual browser checks for streaming output, citations, artifact browsing, tasks, schedules, and notifications.
 
