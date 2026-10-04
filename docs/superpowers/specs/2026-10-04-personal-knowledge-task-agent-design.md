@@ -100,6 +100,48 @@ The application may wrap these APIs with domain services, but it must not create
 
 The model provider remains configurable through the selected OpenAI-compatible endpoint, but provider configuration is injected into Baymax's model adapter. The app does not call the provider SDK directly from knowledge, task, scheduler, or Web handlers.
 
+## Upstream findings and feedback loop
+
+Baymax and Stele are active upstream dependencies whose real integration may expose bugs, missing contracts, performance bottlenecks, or useful optimization opportunities. These findings must remain visible and actionable for their maintainers.
+
+The project maintains separate living documents:
+
+- `docs/upstream/baymax-findings.md`
+- `docs/upstream/stele-findings.md`
+
+Each finding uses the same structured record:
+
+```markdown
+## BAYMAX-YYYY-MM-DD-short-slug
+
+- Status: observed | workaround | upstream-issue-filed | fixed-upstream | closed
+- Dependency version/commit: exact module version or commit
+- Discovered in: application workflow and test name
+- Capability: runtime, tool, subagent, teams, workflow, mailbox, scheduler, context, memory, or diagnostics
+- Symptom: concise actual behavior
+- Expected: behavior required by this project
+- Minimal reproduction: exact command, fixture, or test case
+- Evidence: logs, event timeline, correlation IDs, and relevant output
+- Impact: affected user flow and severity
+- Workaround: local compatibility code or configuration, if any
+- Proposed upstream change: smallest maintainable fix or optimization
+- Validation: regression test and expected result after the fix
+- Upstream reference: issue, PR, or discussion URL when available
+- Removal condition: how and when the workaround can be deleted
+```
+
+The implementation workflow is:
+
+1. capture the exact dependency version and failing scenario;
+2. reduce the behavior to a deterministic fixture or integration test;
+3. add a record to the dependency-specific findings document;
+4. classify the response as a local adapter workaround, configuration mitigation, or upstream fix request;
+5. keep the regression test in this project even after an upstream issue is filed;
+6. when upgrading Baymax or Stele, rerun the affected fixtures and update the record to `fixed-upstream` or `closed`;
+7. remove compatibility code only after the upstream behavior is verified in CI or the documented replacement version.
+
+Findings are linked from the relevant integration module and release notes when they affect behavior. A discovery is not considered complete if the code has a workaround but the reproduction and upstream-facing explanation are missing. The documents are intentionally separate so Baymax and Stele maintainers can consume only the findings for their repository.
+
 ### Required integration evidence
 
 The first implementation is not considered a Baymax integration until the end-to-end evidence includes:
@@ -580,12 +622,14 @@ The implementation is accepted only when these scenarios work in a clean Docker 
 11. Submit equivalent low, medium, and high complexity task profiles and verify the planner chooses `direct`, bounded `subagent_fanout` or `team_parallel`, and checkpointed `workflow`/`mailbox_async` respectively, with an auditable rationale.
 12. Force a discovery-time complexity increase, verify a new plan version is created at a safe point, completed child results are reused, remaining budget is recalculated, and no new write authority is granted implicitly.
 13. Pause a run for `input_required` or `approval_required`, resume it from the stored checkpoint, and verify Baymax run IDs, plan version, Context Assembler projection digests, and Stele references remain correlated.
+14. Introduce a controlled dependency failure or behavior mismatch, verify a deterministic regression fixture and a complete record in the corresponding Baymax or Stele findings document, then verify the documented workaround and upstream removal condition.
 
 Verification is layered:
 
 - unit tests for policy-controlled tool registration, task transitions, cron handling, lease recovery, storage repositories, Stele mapping, and compilation-plan validation;
 - integration tests for Baymax + Stele + KnowledgeStore, including Context Assembler projection, handoff, budget-derived view, mailbox, teams, and subagent paths;
 - planner and harness tests for deterministic mode selection, admission, plan-versioned replanning, pause/resume, commit gates, and Baymax terminal-event ownership;
+- dependency compatibility tests tied to every active Baymax/Stele finding, with version-aware upgrade checks and evidence that obsolete workarounds can be removed safely;
 - Docker end-to-end tests for API chat, compile, task, schedule, notification, and storage switching;
 - manual browser checks for streaming output, citations, artifact browsing, tasks, schedules, and notifications.
 
