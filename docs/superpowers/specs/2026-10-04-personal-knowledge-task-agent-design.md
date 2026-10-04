@@ -26,7 +26,7 @@ The first release supports one local user and provides:
 - Docker Compose deployment with SQLite by default and PostgreSQL as a configuration-selected alternative.
 - Evidence-driven integration and end-to-end scenarios that exercise Baymax and Stele together.
 
-The first release does not include multi-user authentication, cloud hosting, external web crawling, PDF or Office parsing, calendar synchronization, email/enterprise chat notifications, or autonomous background behavior outside explicitly configured schedules.
+The first release does not include multi-user authentication, cloud hosting, external web crawling, PDF or Office parsing, calendar synchronization, email/enterprise chat notifications, or autonomous background behavior outside explicitly configured schedules. Because the workbench has write-capable operations, the default deployment is local-only: the HTTP listener and Docker published port bind to `127.0.0.1`. A non-loopback bind is rejected unless an authenticated mode with authorization and request-forgery protection is explicitly enabled; the first release does not ship that public mode.
 
 ## Design principles
 
@@ -70,6 +70,8 @@ The codebase is organized into focused modules:
 - `storage`: database interfaces, SQLite/PostgreSQL implementations, migrations, and transaction helpers.
 - `cmd`: application and scheduler entry points.
 
+The default local security boundary is enforced in two places: the server rejects non-loopback listener configuration without the required security mode, and Docker Compose publishes ports as `127.0.0.1:host_port:container_port`. The Web UI uses same-origin requests and the server rejects cross-origin state-changing requests. This keeps the unauthenticated single-user surface reachable only from the local machine.
+
 The Baymax integration is intentionally library-first. The application owns model credentials, HTTP persistence, domain authorization, and the mapping from product operations to Baymax runs. Baymax owns Agent execution, child-run limits, team aggregation, mailbox lifecycle, scheduler coordination, and structured run events.
 
 ## Baymax deep-integration contract
@@ -99,6 +101,21 @@ The application may wrap these APIs with domain services, but it must not create
 - Baymax terminal outcome or event ownership.
 
 The model provider remains configurable through the selected OpenAI-compatible endpoint, but provider configuration is injected into Baymax's model adapter. The app does not call the provider SDK directly from knowledge, task, scheduler, or Web handlers.
+
+### Untrusted knowledge and side-effect authority
+
+All imported source text, generated knowledge pages, Stele memories, retrieved task descriptions, webhook payloads, and tool results are data. They are never authority-bearing instructions. The Agent prompt labels every such value with its provenance and explicitly forbids treating embedded requests such as “save this”, “call this URL”, or “ignore the policy” as user authorization.
+
+Side effects are controlled by tool registration and server-side capability checks:
+
+- `read` runs register only read tools;
+- `compile` runs register compilation-plan and commit tools, but not `save_memory`, `create_task`, `update_task`, schedule mutation, or webhook configuration tools;
+- interactive task runs register task or memory tools only when the user request is the source of the requested effect;
+- scheduled runs receive an immutable allowlist stored with the schedule. Retrieved knowledge and prior memories cannot expand that allowlist;
+- `commit_compilation` accepts only a server-created, validated `CompilationPlan` whose source references and effect scope were derived from the explicit ingestion request;
+- every mutation tool rejects calls that lack the server-issued authorization scope, expected revision, and, for scheduled work, the occurrence-scoped effect key.
+
+The Agent may quote or summarize untrusted content, but it cannot turn instructions found in that content into durable writes or external requests. A side effect requiring confirmation pauses the run with `approval_required`; scheduled runs fail with a recorded policy violation instead of guessing approval.
 
 ## Upstream findings and feedback loop
 
@@ -400,7 +417,7 @@ Knowledge is represented as durable artifacts with explicit lineage:
 - **Knowledge index:** a compact catalog of documents, summaries, concepts, entities, and explorations with one-line descriptions and navigable links.
 - **Exploration:** an explicitly saved analysis or comparison produced from a conversation.
 
-Each generated page carries metadata for its type, description, source references, and update time. Source content remains available for citation and direct inspection. The system never treats generated knowledge text as executable instructions.
+Each generated page carries metadata for its type, description, source references, and update time. Source content remains available for citation and direct inspection. Original source text, generated knowledge text, memories, task descriptions, and tool results are all untrusted data and are never treated as executable instructions or authorization.
 
 ## Ingestion and compilation flow
 
@@ -423,9 +440,11 @@ KnowledgeAgent in write policy
         └─ updates source links and the index
         │
         ▼
-Validated atomic KnowledgeStore commit
+Validated staged KnowledgeStore generation
         │
-        └─ Stele records the compile run and source decisions
+        ├─ database commit marker publishes one generation
+        ├─ filesystem materializer exports that generation
+        └─ Stele/outbox records the compile run and source decisions
 ```
 
 The compiler is incremental. Unchanged files are skipped. A changed file is recompiled, and existing concept/entity pages are considered for update rather than blindly duplicated. Removed files are marked for cleanup through an explicit mutation path so that source references and orphaned artifacts can be handled consistently.
@@ -439,7 +458,13 @@ The compiler produces a `CompilationPlan` before writing. The plan contains:
 - link and index changes;
 - source references for every proposed artifact.
 
-Domain validation rejects empty pages, invalid paths, duplicate identities, unknown link targets, and source references that do not exist. Only a validated plan reaches `CommitCompilation`, which executes the write as one transaction or recoverable filesystem mutation.
+Domain validation rejects empty pages, invalid paths, duplicate identities, unknown link targets, and source references that do not exist. Only a validated plan reaches `CommitCompilation`.
+
+The database-backed KnowledgeStore is the sole source of truth for committed knowledge. It stores source bytes, generated artifacts, lineage, section metadata, and a manifest under a monotonically increasing generation ID. `CommitCompilation` writes a complete staged generation and its commit marker in one SQLite/PostgreSQL transaction. Readers resolve only the latest committed generation, so an incomplete generation is invisible.
+
+The mounted filesystem is an input directory plus a derived export/cache. A materializer exports the committed generation using a manifest and atomic file replacement; it never becomes authoritative for navigation or citations. A crash can leave the export behind the database generation, but startup reconciliation compares the manifest and deterministically rebuilds it before declaring the export healthy. Missing or extra files are repaired without changing the committed generation.
+
+Stele is an external context projection, not part of the KnowledgeStore commit transaction. The same database transaction writes a durable `context_outbox` record containing the compile run, generation ID, source decisions, and event digest. A dispatcher retries the Stele append until it is acknowledged with the same idempotency key. If Stele is unavailable, the knowledge generation remains valid and the compile run is marked `context_projection_pending`; navigation and citations continue to use the committed KnowledgeStore generation. This is the only cross-store boundary, and startup reconciliation verifies that every committed generation's required Stele event is either acknowledged or present in the durable outbox.
 
 ## Unified Baymax KnowledgeAgent
 
@@ -537,30 +562,37 @@ The task domain supports:
 - execution history for scheduled tasks;
 - links to Stele context and Agent runs.
 
+Every task carries a monotonically increasing `revision`. UI requests and Agent tools include `expected_revision`; the repository updates the row only when the expected revision matches and increments the revision in the same transaction as the state change. A stale update returns a typed `task_revision_conflict` containing the current task and revision. The UI surfaces a conflict for refresh, while an Agent coordinator rereads the task through Context Assembler and either replans or asks the user. Scheduler leases protect execution ownership, and revision checks separately protect task data from stale interactive, scheduled, or recovery writes.
+
 Scheduled tasks support two action types:
 
 1. **Fixed action:** create a Web reminder, update a task state, or record an event.
 2. **Natural-language Agent action:** execute a user-provided instruction through a `scheduled` KnowledgeAgent run.
 
-Each schedule stores a cron expression, timezone, action type, instruction or fixed-action payload, enabled state, next run time, retry policy, and optional webhook configuration.
+Each schedule stores a cron expression, an IANA timezone name, action type, instruction or fixed-action payload, enabled state, next run time, retry policy, misfire policy, maximum backfill count, and optional webhook configuration. The timezone database version used to calculate an occurrence is stored with that occurrence.
 
 The scheduler loop:
 
 1. finds due enabled schedules;
 2. atomically acquires an execution lease;
-3. creates an execution record;
-4. loads the schedule's Stele context;
-5. starts the allowed Agent run or fixed action;
-6. records success, failure, output summary, and duration;
-7. creates a Web notification;
-8. sends a webhook asynchronously when configured;
-9. calculates the next run and releases the lease.
+3. in the same application database transaction, creates the occurrence record, advances `next_run`, and inserts a `schedule_dispatch_outbox` row containing the occurrence key and Baymax mailbox idempotency key;
+4. commits that transaction before an outbox worker publishes the mailbox command;
+5. lets the outbox worker publish or retry the command, marking the row dispatched only after a durable mailbox acknowledgement;
+6. lets the mailbox worker claim the command under a Baymax lease, load the schedule's Stele context, and start the allowed Agent run or fixed action;
+7. records success, failure, output summary, and duration, and inserts Web notification and webhook delivery intents in the same application transaction as the terminal execution status;
+8. acknowledges the mailbox command after the execution record and delivery intents are durable.
 
-The lease has an expiry so a scheduler restart can recover abandoned work. A schedule execution is idempotent by schedule ID and occurrence timestamp. Webhook failure never rolls back a successful Agent run; it is retried independently with exponential backoff and a terminal failure record.
+The application outbox closes the database-to-mailbox gap: a crash before publication leaves a pending row that is republished with the same idempotency key, while a crash after publication is deduplicated by the mailbox and occurrence key. The outbox worker and mailbox worker are separate from the HTTP process and are safe to restart.
+
+The lease has an expiry so a scheduler restart can recover abandoned work. Every scheduled mutation carries an occurrence-scoped effect key of the form `schedule/<schedule-id>/<occurrence-key>/<effect-name>`. Task, memory, compilation, notification, and other mutation APIs require that key and perform a conditional idempotent write. Replaying an occurrence returns the original effect result instead of applying the mutation twice. Stele writes use the same idempotency key through the Stele adapter; if the selected Stele version cannot provide conditional idempotent writes, the dependent scheduled-mutation task is recorded as `blocked-upstream` and does not ship.
+
+Webhook delivery is at-least-once and receiver-deduplicable. A `webhook_delivery` row stores the occurrence key, payload hash, idempotency key, endpoint, attempt count, lease, next attempt time, and terminal status. It is inserted transactionally with the execution result and claimed by a delivery worker. Crashes before claim leave the row pending; crashes during delivery cause a retry. The worker uses exponential backoff and records terminal failure without altering the Agent result. Receivers are expected to deduplicate by the idempotency key.
+
+Schedule time semantics are explicit. Cron evaluation uses the IANA timezone database. For a nonexistent local time during a spring-forward transition, the occurrence is skipped and recorded as `dst_nonexistent_skipped`. For an ambiguous local time during a fall-back transition, only the earlier UTC instant is selected and recorded as `dst_ambiguous_earlier_offset`. After downtime, the default `coalesce_latest` misfire policy creates one occurrence for the latest missed time and records the skipped interval; `skip` creates no occurrence, and bounded `backfill` may replay at most `max_backfill_count` occurrences in chronological order. Backfill never creates an unbounded burst. Occurrence keys are derived from the scheduled local timestamp, resolved UTC instant, timezone database version, and schedule revision, so restart timing cannot create a different identity.
 
 ## Storage modes
 
-The application uses a storage interface for sessions, tasks, schedules, execution records, notifications, source metadata, knowledge artifacts, and index state.
+The application uses a storage interface for sessions, tasks, schedules, execution records, notifications, source metadata, knowledge artifacts, index state, transactional outboxes, delivery leases, and idempotency records.
 
 Configuration:
 
@@ -575,14 +607,15 @@ DATABASE_URL=postgres://user:password@postgres:5432/personal_agent
 
 SQLite is the default for local development and single-machine use. PostgreSQL is available through the same repositories, migrations, and domain services. `app` and `scheduler` always use the same configured database.
 
-The local knowledge implementation stores source files and generated artifacts under a mounted data directory while SQLite stores metadata and searchable indexes. The PostgreSQL implementation stores metadata and artifacts through the same KnowledgeStore interface; source files may remain in a configured mounted document directory. This keeps the deployment switch explicit without coupling Agent code to a database representation.
+The local knowledge implementation stores the committed source and generated artifact bytes in SQLite and exports them to a mounted data directory as a derived materialization. The PostgreSQL implementation stores the same committed generation and manifest through the KnowledgeStore interface; the configured document directory remains an input mount. Both implementations persist schedule dispatch outbox rows, Stele context outbox rows, webhook delivery rows, and idempotency/effect records in the same database as their owning domain transaction.
 
 Docker Compose provides:
 
 - a default local profile using SQLite and mounted `data/` and `documents/` directories;
 - a PostgreSQL profile that adds a PostgreSQL service and points `app` and `scheduler` at it;
 - shared environment configuration for the OpenAI-compatible model endpoint;
-- health checks and dependency ordering for app, scheduler, and database startup.
+- health checks and dependency ordering for app, scheduler, outbox workers, materializer, delivery worker, and database startup;
+- host port bindings restricted to `127.0.0.1` by default.
 
 ## Web workbench
 
@@ -600,10 +633,14 @@ The first UI is intentionally functional and local-first. It does not expose int
 - **Baymax tool failure:** preserve completed tool events, return a readable failure, and mark the Agent run failed.
 - **Stele unavailable:** interactive chat may continue in explicitly marked no-memory mode; scheduled runs that require context fail and follow the schedule retry policy.
 - **Knowledge compile failure:** do not publish a partial compilation plan. Preserve the previous artifact set and record the failed plan and reason.
+- **Knowledge materialization failure:** keep the committed database generation readable, mark the filesystem export unhealthy, and let startup reconciliation rebuild it from the generation manifest.
 - **Single-file ingestion failure:** continue other files and expose a file-level error.
-- **Invalid Agent write:** reject at the domain boundary before storage mutation.
-- **Scheduler restart:** recover expired leases and avoid duplicate execution using the schedule occurrence key.
-- **Webhook failure:** retain the Agent result, retry delivery independently, and expose the final delivery status.
+- **Invalid or untrusted Agent write:** reject it at capability and domain boundaries before storage mutation; scheduled runs record a policy violation and do not ask an unavailable user for approval.
+- **Scheduler/outbox restart:** recover expired leases and pending outbox rows, republish with the same idempotency key, and avoid duplicate execution using the schedule occurrence and effect keys.
+- **Scheduled side-effect replay:** conditional idempotency records return the original effect result instead of applying a task, memory, compilation, or notification mutation twice.
+- **Webhook failure:** retain the Agent result and durable delivery row, retry delivery independently, and expose the final delivery status and receiver deduplication key.
+- **Task revision conflict:** reject stale writes with the current revision; the UI refreshes and the Agent coordinator rereads and replans.
+- **DST or misfire ambiguity:** apply the stored IANA/DST and misfire policy, record the decision on the occurrence, and derive a stable occurrence key.
 - **Model endpoint failure:** record provider status, latency, and retryable/non-retryable classification without losing conversation or execution records.
 
 ## Validation scenarios
@@ -624,6 +661,14 @@ The implementation is accepted only when these scenarios work in a clean Docker 
 12. Force a discovery-time complexity increase, verify a new plan version is created at a safe point, completed child results are reused, remaining budget is recalculated, and no new write authority is granted implicitly.
 13. Pause a run for `input_required` or `approval_required`, resume it from the stored checkpoint, and verify Baymax run IDs, plan version, Context Assembler projection digests, and Stele references remain correlated.
 14. Introduce a controlled dependency failure or behavior mismatch, verify a deterministic regression fixture and a complete record in the corresponding Baymax or Stele findings document, then verify that the dependent implementation task is blocked until the upstream repair is available.
+15. Start the default Docker deployment and verify the listener and published port are loopback-only; verify a non-loopback configuration is rejected without the future authenticated mode.
+16. Put an instruction-like payload in an imported document and verify the Agent can cite it but cannot use it to call `save_memory`, mutate a task, configure a webhook, or commit an unauthorized compilation.
+17. Crash after staging a knowledge generation, after committing the database generation, and during filesystem materialization; verify readers see either the previous committed generation or the complete new generation and startup reconciliation repairs the export and Stele outbox.
+18. Crash between schedule occurrence commit and mailbox publication, then between mailbox publication and worker acknowledgement; verify the transactional outbox and mailbox idempotency key deliver exactly one logical occurrence.
+19. Lose a worker lease after a scheduled memory or task mutation succeeds; replay the occurrence and verify the effect key returns the original result without a duplicate mutation.
+20. Exercise nonexistent and ambiguous DST local times plus downtime misfires for `skip`, `coalesce_latest`, and bounded `backfill`, and verify recorded occurrence decisions and stable keys.
+21. Crash after recording a successful execution but before webhook delivery; verify a durable delivery row is retried, terminally classified, and carries a stable receiver deduplication key.
+22. Submit concurrent UI, interactive Agent, scheduled, and recovery task updates with stale revisions and verify only the conditional winner commits while all conflicts are surfaced as `task_revision_conflict`.
 
 Verification is layered:
 
