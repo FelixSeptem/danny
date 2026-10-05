@@ -18,6 +18,8 @@ Useful settings include:
 
 Baymax and Stele are pinned to the exact pseudo-versions in `go.mod`, `go.sum`, and `testdata/fixtures/manifest.json`. Any integration defect that requires an upstream change must be recorded in the dependency-specific document under `docs/upstream/` and keeps dependent work blocked until the recorded reproduction passes against the upstream repair. Production workarounds are not permitted.
 
+Fixture hashes are computed after normalizing CRLF to LF, so deterministic evidence is independent of the host Git line-ending setting.
+
 ## Baseline checks
 
 Run these commands from the repository root:

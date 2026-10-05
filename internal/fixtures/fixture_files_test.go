@@ -19,7 +19,7 @@ func TestCheckedInManifestMatchesFixtureHashes(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read fixture %s: %v", entry.ID, err)
 		}
-		hash := sha256.Sum256(data)
+		hash := sha256.Sum256(CanonicalBytes(data))
 		if got := hex.EncodeToString(hash[:]); got != entry.SHA256 {
 			t.Errorf("fixture %s hash = %s, want %s", entry.ID, got, entry.SHA256)
 		}

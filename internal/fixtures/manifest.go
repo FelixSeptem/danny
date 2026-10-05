@@ -1,12 +1,18 @@
 package fixtures
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 )
+
+// CanonicalBytes normalizes text line endings before deterministic hashing.
+func CanonicalBytes(data []byte) []byte {
+	return bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
+}
 
 // ReadManifest decodes and validates a JSON manifest from disk.
 func ReadManifest(path string) (Manifest, error) {
