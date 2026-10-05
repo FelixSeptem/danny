@@ -1,0 +1,6 @@
+{
+  "listen_address": "127.0.0.1:8080",
+  "authenticated_mode": false,
+  "non_loopback_requires_authenticated_mode": true,
+  "storage_driver": "sqlite"
+}

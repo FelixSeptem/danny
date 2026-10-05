@@ -1,0 +1,6 @@
+{
+  "id": "task-basic",
+  "revision": 1,
+  "status": "pending",
+  "title": "Validate deterministic fixture loading"
+}

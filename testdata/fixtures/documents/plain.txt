@@ -1,0 +1,1 @@
+Stable plain text source for offline fixture tests.

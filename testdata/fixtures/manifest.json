@@ -1,0 +1,38 @@
+{
+  "dependency_versions": {
+    "baymax": "v0.0.0-20261003094000-553e07625efb",
+    "stele": "v0.0.0-20261004025609-a122447c80d9"
+  },
+  "fixtures": [
+    {
+      "id": "document-basic",
+      "path": "documents/basic.md",
+      "sha256": "c3f83daac15b662dbe18ee8398e3d9dd239a33e69a4e4e97d840e5e3695b885c",
+      "expected_result": "loaded"
+    },
+    {
+      "id": "document-plain",
+      "path": "documents/plain.txt",
+      "sha256": "dc1770f6f4454d3a72eeb4424aa5ee0e547bedd17a6260e77c8c0d031b513553",
+      "expected_result": "loaded"
+    },
+    {
+      "id": "task-basic",
+      "path": "tasks/task-basic.json",
+      "sha256": "b09833ae5c3d78eec74d857e4594b38ad1349cc7089c781116cb963ea6469b70",
+      "expected_result": "parsed"
+    },
+    {
+      "id": "schedule-basic",
+      "path": "schedules/schedule-basic.json",
+      "sha256": "e1061e80b307278aeed6236f84ed8082d3e4b1875b8e22f4987aeaa911c8d6e6",
+      "expected_result": "parsed"
+    },
+    {
+      "id": "events-basic",
+      "path": "events/events.jsonl",
+      "sha256": "b3034ab6154d41a1a98984a701e1f3ba4a7cff4c91d27fdfd6665127f0dc9aa8",
+      "expected_result": "correlated"
+    }
+  ]
+}
