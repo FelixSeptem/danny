@@ -1,0 +1,6 @@
+{"event_id":"evt-parent-001","kind":"parent","run_id":"run-001","parent_id":""}
+{"event_id":"evt-child-001","kind":"child","run_id":"run-001","parent_id":"evt-parent-001"}
+{"event_id":"evt-team-001","kind":"team","run_id":"run-001","parent_id":"evt-parent-001"}
+{"event_id":"evt-mailbox-001","kind":"mailbox","run_id":"run-001","parent_id":"evt-team-001"}
+{"event_id":"evt-scheduler-001","kind":"scheduler","run_id":"run-001","parent_id":"evt-parent-001"}
+{"event_id":"evt-terminal-001","kind":"terminal","run_id":"run-001","parent_id":"evt-parent-001"}

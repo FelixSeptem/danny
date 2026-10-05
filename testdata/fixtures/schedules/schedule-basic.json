@@ -1,0 +1,8 @@
+{
+  "id": "schedule-basic",
+  "revision": 1,
+  "timezone": "UTC",
+  "cron": "0 9 * * *",
+  "next_run": "2030-01-02T09:00:00Z",
+  "occurrence_key": "schedule-basic:2030-01-02T09:00:00Z"
+}
