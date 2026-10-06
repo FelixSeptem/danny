@@ -1,0 +1,13 @@
+{
+  "schema_version": "runtime-probe.v1",
+  "baymax_version": "v0.0.0-20261003094000-553e07625efb",
+  "stele_version": "unconfigured",
+  "events": [
+    {"sequence": 1, "id": "offline:run:parent", "kind": "parent", "correlation_id": "offline:run", "capability": "run", "status": "passed", "at": "1970-01-01T00:00:00Z"},
+    {"sequence": 2, "id": "offline:run:parent:terminal", "kind": "terminal", "parent_id": "offline:run:parent", "correlation_id": "offline:run", "capability": "run", "status": "passed", "at": "1970-01-01T00:00:00.000000001Z"},
+    {"sequence": 3, "id": "offline:stream:parent", "kind": "parent", "correlation_id": "offline:stream", "capability": "stream", "status": "passed", "at": "1970-01-01T00:00:00Z"},
+    {"sequence": 4, "id": "offline:stream:parent:terminal", "kind": "terminal", "parent_id": "offline:stream:parent", "correlation_id": "offline:stream", "capability": "stream", "status": "passed", "at": "1970-01-01T00:00:00.000000001Z"},
+    {"sequence": 5, "id": "offline:stele:parent", "kind": "parent", "correlation_id": "offline:stele", "capability": "context", "status": "skipped-unconfigured", "at": "1970-01-01T00:00:00Z"},
+    {"sequence": 6, "id": "offline:stele:terminal", "kind": "terminal", "parent_id": "offline:stele:parent", "correlation_id": "offline:stele", "capability": "context", "status": "skipped-unconfigured", "at": "1970-01-01T00:00:00.000000001Z"}
+  ]
+}
