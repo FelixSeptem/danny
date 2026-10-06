@@ -18,12 +18,14 @@ import (
 	"github.com/FelixSeptem/baymax/orchestration/teams"
 	runtimeconfig "github.com/FelixSeptem/baymax/runtime/config"
 	"github.com/FelixSeptem/baymax/tool/local"
+	"github.com/FelixSeptem/danny/internal/agent/knowledge"
 	"github.com/FelixSeptem/danny/internal/runtimeprobe"
 )
 
 const PinnedVersion = "v0.0.0-20261003094000-553e07625efb"
 
 var ErrCapabilityNotWired = errors.New("baymax capability is not wired into the runtime probe adapter")
+var ErrAuthorizedRequest = errors.New("baymax: invalid authorized request")
 
 type Adapter interface{ runtimeprobe.BaymaxAdapter }
 
@@ -31,6 +33,38 @@ type Inventory struct {
 	Version      string
 	Packages     []string
 	Capabilities []string
+}
+
+// KnowledgeExecutor adapts the product KnowledgeAgent contract to Baymax's
+// public runner and composer boundaries without reimplementing their loops.
+type KnowledgeExecutor struct{ Client *Client }
+
+func NewKnowledgeExecutor(client *Client) KnowledgeExecutor { return KnowledgeExecutor{Client: client} }
+
+func (e KnowledgeExecutor) Run(ctx context.Context, req knowledge.ExecutionRequest) (knowledge.ExecutionOutcome, error) {
+	if e.Client == nil {
+		return knowledge.ExecutionOutcome{}, ErrAuthorizedRequest
+	}
+	out, err := e.Client.RunAuthorized(ctx, AuthorizedRequest{RunID: req.RunID, ParentRunID: req.ParentRunID, CorrelationID: req.CorrelationID, PlanVersion: req.PlanVersion, CapabilityDigest: req.CapabilityDigest, ProjectionDigest: req.ProjectionDigest, Input: req.Input})
+	if err != nil {
+		return knowledge.ExecutionOutcome{}, err
+	}
+	return knowledge.ExecutionOutcome{Status: out.Terminal.Status, Result: out.Terminal.Result, FailureClass: out.Terminal.FailureClass}, nil
+}
+
+func (e KnowledgeExecutor) RunChild(ctx context.Context, req knowledge.ExecutionRequest) (knowledge.ExecutionOutcome, error) {
+	if e.Client == nil || req.RunID == "" || req.ParentRunID == "" || req.CapabilityDigest == "" {
+		return knowledge.ExecutionOutcome{}, ErrAuthorizedRequest
+	}
+	out, err := e.Client.Child(ctx, runtimeprobe.ProbeRequest{CorrelationID: req.CorrelationID, ParentID: req.ParentRunID, Input: req.Input, Capability: req.CapabilityDigest})
+	if err != nil {
+		return knowledge.ExecutionOutcome{}, err
+	}
+	status := "succeeded"
+	if len(out.Events) > 0 && out.Events[len(out.Events)-1].Status != runtimeprobe.StatusPassed {
+		status = "failed"
+	}
+	return knowledge.ExecutionOutcome{Status: status}, nil
 }
 
 func NewInventory() Inventory {
@@ -53,8 +87,9 @@ func NewInventory() Inventory {
 // Client is the narrow boundary around Baymax's public runner. It accepts a
 // ModelClient so deterministic probes can use Baymax's own fake model.
 type Client struct {
-	engine *runner.Engine
-	model  bmtypes.ModelClient
+	engine    *runner.Engine
+	model     bmtypes.ModelClient
+	assembler *assembler.Assembler
 }
 
 func New(model bmtypes.ModelClient, opts ...runner.Option) (*Client, error) {
@@ -66,7 +101,87 @@ func New(model bmtypes.ModelClient, opts ...runner.Option) (*Client, error) {
 		return nil, err
 	}
 	opts = append(opts, runner.WithLocalRegistry(registry))
-	return &Client{engine: runner.New(model, opts...), model: model}, nil
+	cfg := runtimeconfig.DefaultConfig().ContextAssembler
+	return &Client{engine: runner.New(model, opts...), model: model, assembler: assembler.New(func() runtimeconfig.ContextAssemblerConfig { return cfg })}, nil
+}
+
+type AuthorizedRequest struct {
+	RunID, ParentRunID, CorrelationID               string
+	PlanVersion, CapabilityDigest, ProjectionDigest string
+	Prefix, Input                                   string
+}
+
+type EventKind string
+
+const (
+	EventParent     EventKind = "parent"
+	EventChild      EventKind = "child"
+	EventTool       EventKind = "tool"
+	EventDiagnostic EventKind = "diagnostic"
+	EventTerminal   EventKind = "terminal"
+)
+
+type ExecutionEvent struct {
+	Sequence                                        int
+	ID, ParentID, CorrelationID                     string
+	Kind                                            EventKind
+	PlanVersion, CapabilityDigest, ProjectionDigest string
+	Status, FailureClass, Result                    string
+}
+
+type Terminal struct{ Status, FailureClass, Result string }
+
+type ExecutionResult struct {
+	ParentRunID, PlanVersion, CapabilityDigest, ProjectionDigest string
+	Events                                                       []ExecutionEvent
+	Terminal                                                     Terminal
+}
+
+func (c *Client) RunAuthorized(ctx context.Context, req AuthorizedRequest) (ExecutionResult, error) {
+	return c.executeAuthorized(ctx, req, false)
+}
+
+func (c *Client) StreamAuthorized(ctx context.Context, req AuthorizedRequest) (ExecutionResult, error) {
+	return c.executeAuthorized(ctx, req, true)
+}
+
+func (c *Client) executeAuthorized(ctx context.Context, req AuthorizedRequest, stream bool) (ExecutionResult, error) {
+	if c == nil || c.engine == nil || req.RunID == "" || req.CorrelationID == "" || req.CapabilityDigest == "" || req.PlanVersion == "" {
+		return ExecutionResult{}, ErrAuthorizedRequest
+	}
+	parent := req.ParentRunID
+	if parent == "" {
+		parent = req.RunID
+	}
+	assembleReq := bmtypes.ContextAssembleRequest{RunID: req.RunID, SessionID: req.CorrelationID, PrefixVersion: req.Prefix, Input: req.Input}
+	modelReq := bmtypes.ModelRequest{RunID: req.RunID, Input: req.Input}
+	if c.assembler != nil {
+		var err error
+		modelReq, _, err = c.assembler.Assemble(ctx, assembleReq, modelReq)
+		if err != nil {
+			return ExecutionResult{}, err
+		}
+	}
+	request := bmtypes.RunRequest{RunID: req.RunID, Input: modelReq.Input}
+	var result bmtypes.RunResult
+	var err error
+	if stream {
+		result, err = c.engine.Stream(ctx, request, nil)
+	} else {
+		result, err = c.engine.Run(ctx, request, nil)
+	}
+	terminal := Terminal{Status: "succeeded", Result: result.FinalAnswer}
+	if err != nil || result.Error != nil {
+		terminal.Status = "failed"
+		if err != nil {
+			terminal.FailureClass = err.Error()
+		} else {
+			terminal.FailureClass = string(result.Error.Class)
+		}
+	}
+	events := []ExecutionEvent{{Sequence: 1, ID: parent, Kind: EventParent, CorrelationID: req.CorrelationID, PlanVersion: req.PlanVersion, CapabilityDigest: req.CapabilityDigest, ProjectionDigest: req.ProjectionDigest, Status: terminal.Status}, {Sequence: 2, ID: req.RunID + ":terminal", ParentID: parent, Kind: EventTerminal, CorrelationID: req.CorrelationID, PlanVersion: req.PlanVersion, CapabilityDigest: req.CapabilityDigest, ProjectionDigest: req.ProjectionDigest, Status: terminal.Status, FailureClass: terminal.FailureClass, Result: terminal.Result}}
+	out := ExecutionResult{ParentRunID: parent, PlanVersion: req.PlanVersion, CapabilityDigest: req.CapabilityDigest, ProjectionDigest: req.ProjectionDigest, Events: events, Terminal: terminal}
+	return out, err
 }
 
 type probeTool struct{}

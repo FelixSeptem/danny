@@ -121,3 +121,33 @@ func TestClientReferencesUsesSafeProviderOperationTokens(t *testing.T) {
 		t.Fatalf("event types=%v, want conversation.message for both canonical references", eventTypes)
 	}
 }
+
+func TestClientBuildsBoundedReferenceFirstProjection(t *testing.T) {
+	var got map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Fatal(err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"result":{"references":[{"id":"source-1","locator":"doc.md#intro","summary":"intro"}],"content":"ignored full store"}}`))
+	}))
+	defer server.Close()
+	client, err := NewClient(server.URL, server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	projection, err := client.BoundedProjection(context.Background(), ProjectionRequest{RunID: "run-1", Query: "task", Budget: 256, Role: "section_analyst"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if projection.Digest == "" || len(projection.References) != 1 || projection.References[0].ID != "source-1" {
+		t.Fatalf("projection=%#v", projection)
+	}
+	input := got["input"].(map[string]any)
+	if input["budget"].(float64) != 256 || input["role"].(string) != "section_analyst" {
+		t.Fatalf("input=%#v", input)
+	}
+	if projection.Content != "" {
+		t.Fatal("bounded projection copied full store content")
+	}
+}

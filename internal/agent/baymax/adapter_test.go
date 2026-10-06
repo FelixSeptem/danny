@@ -2,6 +2,7 @@ package baymax
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/FelixSeptem/baymax/core/types"
@@ -159,5 +160,43 @@ func TestClientDispatchesBoundedBaymaxChild(t *testing.T) {
 	}
 	if out.Events[1].Payload["budget_ms"] != "1000" || out.Events[1].Payload["capability_digest"] == "" {
 		t.Fatalf("child budget/capability evidence missing: %#v", out.Events[1].Payload)
+	}
+}
+
+func TestAuthorizedRunAndStreamProjectEquivalentTerminals(t *testing.T) {
+	newClient := func() *Client {
+		client, err := New(fakes.NewModel([]fakes.ModelStep{{Response: types.ModelResponse{FinalAnswer: "ok"}}}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return client
+	}
+	req := AuthorizedRequest{RunID: "run-1", CorrelationID: "corr-1", PlanVersion: "plan-1", CapabilityDigest: "cap-1", ProjectionDigest: "projection-1", Prefix: "prefix", Input: "hello"}
+	run, err := newClient().RunAuthorized(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stream, err := newClient().StreamAuthorized(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.Terminal.Status != stream.Terminal.Status || run.Terminal.FailureClass != stream.Terminal.FailureClass {
+		t.Fatalf("terminal mismatch: %#v %#v", run.Terminal, stream.Terminal)
+	}
+	if run.ParentRunID != req.RunID || run.PlanVersion != req.PlanVersion || run.CapabilityDigest != req.CapabilityDigest || run.ProjectionDigest != req.ProjectionDigest {
+		t.Fatalf("correlation lost: %#v", run)
+	}
+	if len(run.Events) < 2 || run.Events[0].Kind != EventParent || run.Events[len(run.Events)-1].Kind != EventTerminal {
+		t.Fatalf("events=%#v", run.Events)
+	}
+}
+
+func TestAuthorizedRunRejectsMissingCapabilityDigest(t *testing.T) {
+	client, err := New(fakes.NewModel([]fakes.ModelStep{{Response: types.ModelResponse{FinalAnswer: "ok"}}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.RunAuthorized(context.Background(), AuthorizedRequest{RunID: "run", CorrelationID: "corr", Input: "hello"}); !errors.Is(err, ErrAuthorizedRequest) {
+		t.Fatalf("error=%v", err)
 	}
 }

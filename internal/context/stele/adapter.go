@@ -36,6 +36,58 @@ type Client struct {
 	Namespace string
 }
 
+// ProjectionRequest is the narrow product request for bounded context
+// disclosure. It intentionally carries a query and budget rather than a
+// request to export the Stele store.
+type ProjectionRequest struct {
+	RunID  string
+	Query  string
+	Budget int
+	Role   string
+}
+
+type ProjectionReference struct {
+	ID      string   `json:"id,omitempty"`
+	Kind    string   `json:"kind,omitempty"`
+	Locator string   `json:"locator,omitempty"`
+	Summary string   `json:"summary,omitempty"`
+	Tags    []string `json:"tags,omitempty"`
+}
+
+type BoundedProjection struct {
+	References []ProjectionReference `json:"references"`
+	Digest     string                `json:"digest"`
+	Content    string                `json:"-"`
+}
+
+func (c *Client) BoundedProjection(ctx context.Context, req ProjectionRequest) (BoundedProjection, error) {
+	if c == nil || strings.TrimSpace(c.BaseURL) == "" || strings.TrimSpace(req.RunID) == "" {
+		return BoundedProjection{}, fmt.Errorf("stele projection request is not configured")
+	}
+	if req.Budget <= 0 {
+		req.Budget = 2048
+	}
+	body := map[string]any{
+		"metadata": map[string]any{"request_id": req.RunID, "operation_id": "context_projection", "schema_version": "provider-v1", "idempotency_key": req.RunID + ":projection"},
+		"input":    map[string]any{"query": req.Query, "budget": req.Budget, "role": req.Role},
+	}
+	var response struct {
+		Result struct {
+			References []ProjectionReference `json:"references"`
+			Content    string                `json:"content"`
+		} `json:"result"`
+	}
+	if err := c.request(ctx, http.MethodPost, "/v1/provider/context", body, &response); err != nil {
+		return BoundedProjection{}, err
+	}
+	// Only references enter the child projection. Content remains available
+	// through an explicit bounded read operation and is never copied here.
+	refs := append([]ProjectionReference(nil), response.Result.References...)
+	canonical, _ := json.Marshal(refs)
+	digest := sha256.Sum256(canonical)
+	return BoundedProjection{References: refs, Digest: hex.EncodeToString(digest[:])}, nil
+}
+
 func NewClient(baseURL string, httpClient *http.Client) (*Client, error) {
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if baseURL == "" {
