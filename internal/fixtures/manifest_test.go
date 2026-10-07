@@ -14,7 +14,7 @@ func TestValidateManifestRejectsMissingIdentity(t *testing.T) {
 
 func TestValidateManifestAcceptsDeterministicEntry(t *testing.T) {
 	manifest := Manifest{
-		DependencyVersions: map[string]string{"baymax": "v0.0.0-20261003094000-553e07625efb", "stele": "v0.0.0-20261006031612-63d1f3dc4675"},
+		DependencyVersions: map[string]string{"baymax": "v0.0.0-20261003094000-553e07625efb", "stele": "v0.0.0-20261007033528-a556ac0ddacc"},
 		Fixtures: []Entry{{
 			ID:             "document-basic",
 			Path:           "documents/basic.md",

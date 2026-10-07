@@ -14,7 +14,7 @@ func (r *leaseRepository) Acquire(ctx context.Context, resourceType, resourceID,
 	if err != nil {
 		return Lease{}, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	now := time.Now().UTC()
 	var currentOwner, untilText string
 	var fencing int64

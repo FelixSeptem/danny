@@ -19,7 +19,7 @@ func (r *generationRepository) Begin(ctx context.Context) (Generation, error) {
 	if err != nil {
 		return Generation{}, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	var id int64
 	if err := tx.QueryRowContext(ctx, r.store.bind(`SELECT COALESCE(MAX(id), 0)+1 FROM knowledge_generations`)).Scan(&id); err != nil {
 		return Generation{}, err
@@ -60,7 +60,7 @@ func (r *generationRepository) Commit(ctx context.Context, generationID int64, m
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	now := time.Now().UTC()
 	if _, err := tx.ExecContext(ctx, r.store.bind(`INSERT INTO manifests(generation_id,payload,created_at) VALUES(?,?,?)`), generationID, manifest, now.Format(time.RFC3339Nano)); err != nil {
 		return fmt.Errorf("write manifest: %w", err)
@@ -114,7 +114,8 @@ func (r *generationRepository) Materialize(ctx context.Context, generationID int
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
+	expected := map[string]struct{}{}
 	for rows.Next() {
 		var id, kind string
 		var content []byte
@@ -133,25 +134,60 @@ func (r *generationRepository) Materialize(ctx context.Context, generationID int
 			return err
 		}
 		name := temp.Name()
-		if _, err := temp.Write(content); err == nil {
-			err = temp.Close()
-		} else {
-			temp.Close()
+		if _, err := temp.Write(content); err != nil {
+			_ = temp.Close()
+			_ = os.Remove(name)
+			return err
 		}
-		if err != nil {
-			os.Remove(name)
+		if err := temp.Close(); err != nil {
+			_ = os.Remove(name)
 			return err
 		}
 		if err := r.store.fail("filesystem_materialization"); err != nil {
-			os.Remove(name)
+			_ = os.Remove(name)
 			return err
 		}
 		if err := os.Rename(name, path); err != nil {
-			os.Remove(name)
+			_ = os.Remove(name)
 			return err
 		}
+		expected[path] = struct{}{}
 	}
-	return rows.Err()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	return removeExtraMaterializedFiles(root, expected)
+}
+
+func removeExtraMaterializedFiles(root string, expected map[string]struct{}) error {
+	entries, err := os.ReadDir(root)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		path := filepath.Join(root, entry.Name())
+		if entry.IsDir() {
+			if err := removeExtraMaterializedFiles(path, expected); err != nil {
+				return err
+			}
+			children, readErr := os.ReadDir(path)
+			if readErr == nil && len(children) == 0 {
+				if err := os.Remove(path); err != nil {
+					return err
+				}
+			}
+			continue
+		}
+		if _, ok := expected[path]; !ok {
+			if err := os.Remove(path); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func isWithin(root, candidate string) bool {
@@ -172,7 +208,7 @@ func (s *Store) Reconcile(ctx context.Context, materializationRoot string) error
 	for rows.Next() {
 		var id int64
 		if err := rows.Scan(&id); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			return err
 		}
 		ids = append(ids, id)

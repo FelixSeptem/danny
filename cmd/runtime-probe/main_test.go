@@ -50,8 +50,8 @@ func TestLiveSmokeUsesConfiguredOpenAICompatibleEndpointAndRedactsCredential(t *
 }
 
 func TestLiveSmokeSkipsWithoutExplicitConfiguration(t *testing.T) {
-	os.Unsetenv("OPENAI_BASE_URL")
-	os.Unsetenv("OPENAI_MODEL")
+	_ = os.Unsetenv("OPENAI_BASE_URL")
+	_ = os.Unsetenv("OPENAI_MODEL")
 	bundle, err := liveSmoke(context.Background())
 	if err != nil {
 		t.Fatal(err)

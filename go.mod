@@ -4,7 +4,7 @@ go 1.26.8
 
 require (
 	github.com/FelixSeptem/baymax v0.0.0-20261003094000-553e07625efb
-	github.com/FelixSeptem/stele v0.0.0-20261006031612-63d1f3dc4675
+	github.com/FelixSeptem/stele v0.0.0-20261007033528-a556ac0ddacc
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.11.0
 	modernc.org/sqlite v1.60.1

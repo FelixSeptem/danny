@@ -143,6 +143,7 @@ func steleSmoke(ctx context.Context) (runtimeprobe.Bundle, error) {
 		{"context", client.Context},
 		{"memory", client.Memory},
 		{"references", client.References},
+		{"compilation", client.Compilation},
 		{"restart", client.RestartProjection},
 		{"idempotent", client.IdempotentMemory},
 	}

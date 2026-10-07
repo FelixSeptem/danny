@@ -17,7 +17,7 @@ import (
 	"github.com/FelixSeptem/stele/openapi"
 )
 
-const PinnedVersion = "v0.0.0-20261006031612-63d1f3dc4675"
+const PinnedVersion = "v0.0.0-20261007033528-a556ac0ddacc"
 
 // Adapter is the HTTP/OpenAPI boundary for Stele's public runtime surface.
 // Stele's internal Go packages are intentionally not imported by this project.
@@ -429,7 +429,7 @@ func (c *Client) request(ctx context.Context, method, path string, body any, out
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("stele %s returned %s", path, resp.Status)
 	}

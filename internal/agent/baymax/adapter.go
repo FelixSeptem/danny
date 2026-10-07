@@ -243,10 +243,6 @@ func (c *Client) execute(ctx context.Context, req runtimeprobe.ProbeRequest, str
 	return out, nil
 }
 
-func (c *Client) unsupported(name string) (runtimeprobe.ProbeOutcome, error) {
-	return runtimeprobe.ProbeOutcome{}, fmt.Errorf("%w: %s", ErrCapabilityNotWired, name)
-}
-
 func (c *Client) Child(ctx context.Context, req runtimeprobe.ProbeRequest) (runtimeprobe.ProbeOutcome, error) {
 	if req.CorrelationID == "" {
 		return runtimeprobe.ProbeOutcome{}, fmt.Errorf("correlation id is required")

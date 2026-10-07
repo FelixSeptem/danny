@@ -91,6 +91,32 @@ go run ./cmd/runtime-probe stele-smoke
 
 Danny 没有增加本地 reference store、路径重写或替代写入路径。探针等待 Stele 已有的异步 worker 治理完成后再验证 canonical retrieval。
 
+## 已解决的问题（续）
+
+### STELE-004：Provider 编译投影在 summary canonical 写入阶段失败，事件无法完成治理
+
+- **状态：** `fixed-upstream`
+- **受影响版本：** `github.com/FelixSeptem/stele v0.0.0-20261006031612-63d1f3dc4675`（commit `63d1f3dc4675`）
+- **修复版本：** `github.com/FelixSeptem/stele v0.0.0-20261007022008-54372e2fe4f3`（commit `54372e2fe4f3`）
+- **复现环境：** 使用全新的 PostgreSQL Compose 数据卷和 provider-v1 runtime credential，通过 `go run ./cmd/runtime-probe stele-smoke` 追加 `knowledge/generations/987654321` 编译投影并等待治理。
+- **实际行为（旧版本）：** API 写入、幂等 replay 和 exact-path lookup 可以成功，但治理 worker 最终报 `insert summary canonical memory: ERROR: INSERT has more target columns than expressions (SQLSTATE 42601)`，raw event 未完成处理。
+- **上游引用：** Stele commit `54372e2fe4f3`（`fix: repair summary canonical persistence`）。
+- **修复验证：** 使用 `54372e2fe4f3` 的全新 PostgreSQL Compose 环境重新执行原始复现后，summary canonical INSERT 错误消失；compilation API 写入、相同 event ID replay 和 exact-path lookup 均通过。后续发现的 provenance UUID 错误属于独立的 STELE-005，已由 `a556ac0ddacc` 修复。
+- **解除条件：** 已满足。Danny 没有加入 event type 替换、重复写入、路径重写或本地 reference store workaround。
+### STELE-005：Provenance 写入使用非 UUID 后缀，编译事件无法完成治理
+
+- **状态：** `fixed-upstream`
+- **受影响版本：** `github.com/FelixSeptem/stele v0.0.0-20261007022008-54372e2fe4f3`（commit `54372e2fe4f3`）
+- **修复版本：** `github.com/FelixSeptem/stele v0.0.0-20261007033528-a556ac0ddacc`（commit `a556ac0ddacc4026a1bd7b02d7123d884185001a`）
+- **复现环境：** 使用修复 commit 构建的 Stele 镜像、全新 PostgreSQL 数据卷、`STELE_PROVIDER_ENABLED=true`、`STELE_PROVIDER_SCHEMA_VERSIONS=provider-v1`，并通过官方 bootstrap 脚本创建精确 scope 的 runtime credential。
+- **原始复现：** 在旧版本中运行 `go run ./cmd/runtime-probe stele-smoke`，追加 `knowledge/generations/987654321` 编译投影以及 task/run 引用；API 写入、幂等 replay 和即时 exact-path lookup 可以成功，但异步治理最终失败，错误为 `insert provenance: ERROR: invalid input syntax for type uuid: "<event-uuid>_prov_0" (SQLSTATE 22P02)`，`governance_processed_at` 为空。
+- **预期行为：** candidate、canonical 和 provenance 记录使用合法 UUID，raw event 完成治理并设置 `governance_processed_at`；编译投影和 task/run 引用在异步治理及重启后继续可检索。
+- **上游引用：** Stele commit `a556ac0ddacc4026a1bd7b02d7123d884185001a`（`fix: generate uuid provenance identifiers`）。
+- **修复验证：** 使用修复版本和全新 PostgreSQL Compose 环境重新执行原始探针。`stele_version` 为 `v0.0.0-20261007033528-a556ac0ddacc`；`context`、`memory`、`references`、`compilation`、`restart`、`idempotent` 全部为 `passed`。compilation replay 返回相同 event ID 且 `replayed=true`，编译 exact-path lookup 为 `true`，task/run exact-path lookup 均为 `true`。数据库复核显示三条相关 raw event 的 `governance_processed_at` 已设置、`governance_last_error` 为空，candidate 状态为 `promoted`，canonical 状态为 `active`，未再出现 UUID 错误。
+- **证据：** `testdata/runtimeprobe/stele-compose.evidence.json`、隔离 PostgreSQL 查询结果以及修复版本的脱敏 `go run ./cmd/runtime-probe stele-smoke` 输出。仓库中没有保存 credential、Authorization header 或原始 provider payload。
+- **受影响任务：** OpenSpec `knowledge-compilation-workflow` 任务 `5.4` 和任务 `5.5` 的 STELE-005 阻塞已解除。
+- **解除条件：** 已满足。Danny 没有加入 provenance ID 重写、禁用 provenance、跳过治理或本地 reference store workaround。
+
 ## 未解决的问题
 
 以下问题仍会阻塞依赖它们的 Danny 任务。未满足解除条件之前，不得加入本地 workaround。

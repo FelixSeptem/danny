@@ -20,12 +20,12 @@ func TestPostgresRepositoryContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenPostgres() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	schema := "danny_contract_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 	if _, err := store.DB().ExecContext(ctx, `CREATE SCHEMA `+schema); err != nil {
 		t.Fatalf("create contract schema: %v", err)
 	}
-	defer store.DB().ExecContext(ctx, `DROP SCHEMA `+schema+` CASCADE`)
+	defer func() { _, _ = store.DB().ExecContext(ctx, `DROP SCHEMA `+schema+` CASCADE`) }()
 	if _, err := store.DB().ExecContext(ctx, `SET search_path TO `+schema); err != nil {
 		t.Fatalf("set contract schema: %v", err)
 	}

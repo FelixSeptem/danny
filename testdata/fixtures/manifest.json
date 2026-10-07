@@ -1,7 +1,7 @@
 {
   "dependency_versions": {
     "baymax": "v0.0.0-20261003094000-553e07625efb",
-    "stele": "v0.0.0-20261006031612-63d1f3dc4675"
+    "stele": "v0.0.0-20261007033528-a556ac0ddacc"
   },
   "fixtures": [
     {

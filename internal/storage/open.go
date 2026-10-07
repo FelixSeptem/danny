@@ -30,7 +30,7 @@ func OpenSQLite(ctx context.Context, dsn string) (*Store, error) {
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 	if _, err := db.ExecContext(ctx, "PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;"); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("configure sqlite: %w", err)
 	}
 	return &Store{db: db, driver: "sqlite"}, nil
@@ -58,7 +58,7 @@ func OpenPostgres(ctx context.Context, dsn string) (*Store, error) {
 		return nil, fmt.Errorf("open postgres: %w", err)
 	}
 	if err := db.PingContext(ctx); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
 	return &Store{db: db, driver: "postgres"}, nil

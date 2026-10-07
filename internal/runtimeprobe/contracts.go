@@ -30,6 +30,7 @@ type SteleAdapter interface {
 	Context(context.Context, ProbeRequest) (ProbeOutcome, error)
 	Memory(context.Context, ProbeRequest) (ProbeOutcome, error)
 	References(context.Context, ProbeRequest) (ProbeOutcome, error)
+	Compilation(context.Context, ProbeRequest) (ProbeOutcome, error)
 	RestartProjection(context.Context, ProbeRequest) (ProbeOutcome, error)
 	IdempotentMemory(context.Context, ProbeRequest) (ProbeOutcome, error)
 }

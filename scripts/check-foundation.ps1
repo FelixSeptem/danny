@@ -11,6 +11,13 @@ try {
     & go list ./...
     & go test ./...
     & go vet ./...
+    if (-not (Get-Command golangci-lint -ErrorAction SilentlyContinue)) {
+        throw "golangci-lint is required for the quality gate. Install golangci-lint v2 or newer and retry."
+    }
+    & golangci-lint run ./...
+    if ($LASTEXITCODE -ne 0) {
+        throw "golangci-lint failed with exit code $LASTEXITCODE"
+    }
     Write-Output "Foundation checks passed without contacting a model endpoint."
 } finally {
     Pop-Location

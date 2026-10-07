@@ -21,7 +21,7 @@ func main() {
 	ctx := context.Background()
 	store, err := storage.Open(ctx, cfg.StorageDriver, cfg.DatabaseURL)
 	if err == nil {
-		defer store.Close()
+		defer func() { _ = store.Close() }()
 		err = store.Migrate(ctx)
 	}
 	if err == nil {

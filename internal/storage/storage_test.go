@@ -15,7 +15,7 @@ func TestSQLiteStoreInitializesAndReportsSchemaVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSQLite() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	if err := store.Migrate(ctx); err != nil {
 		t.Fatalf("Migrate() error = %v", err)
@@ -35,7 +35,7 @@ func TestTaskRevisionRejectsStaleUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSQLite() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	if err := store.Migrate(ctx); err != nil {
 		t.Fatalf("Migrate() error = %v", err)
 	}
@@ -63,7 +63,7 @@ func TestEffectKeyReturnsOriginalResultOnReplay(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSQLite() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	if err := store.Migrate(ctx); err != nil {
 		t.Fatalf("Migrate() error = %v", err)
 	}
@@ -90,7 +90,7 @@ func TestOutboxClaimUsesStableIdempotencyKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSQLite() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	if err := store.Migrate(ctx); err != nil {
 		t.Fatalf("Migrate() error = %v", err)
 	}
@@ -114,7 +114,7 @@ func TestCommittedGenerationCanRebuildDerivedMaterialization(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSQLite() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	if err := store.Migrate(ctx); err != nil {
 		t.Fatalf("Migrate() error = %v", err)
 	}
@@ -166,6 +166,16 @@ func TestCommittedGenerationCanRebuildDerivedMaterialization(t *testing.T) {
 	if string(content) != "hello" {
 		t.Fatalf("rebuilt content = %q", content)
 	}
+	extra := filepath.Join(dir, "summary", "stale-artifact")
+	if err := os.WriteFile(extra, []byte("stale"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Generations().Materialize(ctx, committed.ID, dir); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(extra); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("stale artifact still exists: %v", err)
+	}
 }
 
 func TestLeaseFencingRejectsExpiredOwner(t *testing.T) {
@@ -174,7 +184,7 @@ func TestLeaseFencingRejectsExpiredOwner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSQLite() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	if err := store.Migrate(ctx); err != nil {
 		t.Fatalf("Migrate() error = %v", err)
 	}
@@ -202,7 +212,7 @@ func TestTransactionCommitsStateAndOutboxTogether(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	if err := store.Migrate(ctx); err != nil {
 		t.Fatalf("Migrate() error = %v", err)
 	}
@@ -230,7 +240,7 @@ func TestOutboxAdapterBoundariesRemainExplicit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	if err := store.ValidateOutboxKind(OutboxKindSchedule); err != nil {
 		t.Fatal(err)
 	}
@@ -245,7 +255,7 @@ func TestFailureInjectorRollsBackStateOutboxBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	if err := store.Migrate(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -279,7 +289,7 @@ func TestFailureInjectorCoversGenerationLeaseEffectAndMaterialization(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	if err := store.Migrate(ctx); err != nil {
 		t.Fatal(err)
 	}

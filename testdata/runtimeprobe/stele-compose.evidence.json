@@ -1,7 +1,7 @@
 {
   "schema_version": "runtime-probe.v1",
   "baymax_version": "v0.0.0-20261003094000-553e07625efb",
-  "stele_version": "v0.0.0-20261006031612-63d1f3dc4675",
+  "stele_version": "v0.0.0-20261007033528-a556ac0ddacc",
   "events": [
     {
       "sequence": 1,
@@ -54,7 +54,7 @@
       "status": "passed",
       "at": "1970-01-01T00:00:00.000000001Z",
       "payload": {
-        "event_id": "e6deca78-106e-4602-a2d6-a9c21c91bcd6",
+        "event_id": "cd5cb58e-b6b7-486c-8555-f1c4bcaf5eb7",
         "retrieve": "passed",
         "retrieve_path": "/v1/provider/retrieve",
         "write_path": "/v1/provider/events"
@@ -90,10 +90,10 @@
       "at": "1970-01-01T00:00:00.000000001Z",
       "payload": {
         "run_path": "runtimeprobe/runs/stele:references:run",
-        "run_reference_id": "5d968052-6864-45d1-b5b0-04fb0eea5be1",
+        "run_reference_id": "283bc0ac-eb67-4d97-9f9a-b17f51394662",
         "run_retrieved": "true",
         "task_path": "runtimeprobe/tasks/stele:references:task",
-        "task_reference_id": "e0692597-15bf-4ac4-9c52-2c1083f9595e",
+        "task_reference_id": "19d8e84c-db52-4b41-91f9-b281f3b84481",
         "task_retrieved": "true"
       }
     },
@@ -109,6 +109,43 @@
     },
     {
       "sequence": 10,
+      "id": "stele:compilation:parent",
+      "kind": "parent",
+      "correlation_id": "stele:compilation",
+      "capability": "compilation",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00Z"
+    },
+    {
+      "sequence": 11,
+      "id": "stele:compilation:parent:compilation",
+      "kind": "memory",
+      "parent_id": "stele:compilation:parent",
+      "correlation_id": "stele:compilation",
+      "capability": "compilation",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000001Z",
+      "payload": {
+        "first_event_id": "338ccae8-9679-4998-a88c-c6086f5bae2f",
+        "first_replayed": "true",
+        "reference_found": "true",
+        "reference_path": "knowledge/generations/987654321",
+        "replay_event_id": "338ccae8-9679-4998-a88c-c6086f5bae2f",
+        "replayed": "true"
+      }
+    },
+    {
+      "sequence": 12,
+      "id": "stele:compilation:parent:compilation:terminal",
+      "kind": "terminal",
+      "parent_id": "stele:compilation:parent:compilation",
+      "correlation_id": "stele:compilation",
+      "capability": "compilation",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000002Z"
+    },
+    {
+      "sequence": 13,
       "id": "stele:restart:parent",
       "kind": "parent",
       "correlation_id": "stele:restart",
@@ -117,7 +154,7 @@
       "at": "1970-01-01T00:00:00Z"
     },
     {
-      "sequence": 11,
+      "sequence": 14,
       "id": "stele:restart:parent:context",
       "kind": "context",
       "parent_id": "stele:restart:parent",
@@ -130,7 +167,7 @@
       }
     },
     {
-      "sequence": 12,
+      "sequence": 15,
       "id": "stele:restart:parent:context:terminal",
       "kind": "terminal",
       "parent_id": "stele:restart:parent:context",
@@ -140,7 +177,7 @@
       "at": "1970-01-01T00:00:00.000000002Z"
     },
     {
-      "sequence": 13,
+      "sequence": 16,
       "id": "stele:idempotent:parent",
       "kind": "parent",
       "correlation_id": "stele:idempotent",
@@ -149,7 +186,7 @@
       "at": "1970-01-01T00:00:00Z"
     },
     {
-      "sequence": 14,
+      "sequence": 17,
       "id": "stele:idempotent:parent:memory:first",
       "kind": "memory",
       "parent_id": "stele:idempotent:parent",
@@ -159,12 +196,12 @@
       "at": "1970-01-01T00:00:00.000000001Z",
       "payload": {
         "attempt": "first",
-        "event_id": "3ec0d235-e91a-4424-9a85-b1adbb6f0935",
+        "event_id": "39660bb4-3216-48be-bab0-8a44e406ea23",
         "path": "/v1/provider/events"
       }
     },
     {
-      "sequence": 15,
+      "sequence": 18,
       "id": "stele:idempotent:parent:memory:replay",
       "kind": "memory",
       "parent_id": "stele:idempotent:parent",
@@ -174,13 +211,13 @@
       "at": "1970-01-01T00:00:00.000000002Z",
       "payload": {
         "attempt": "replay",
-        "event_id": "3ec0d235-e91a-4424-9a85-b1adbb6f0935",
+        "event_id": "39660bb4-3216-48be-bab0-8a44e406ea23",
         "path": "/v1/provider/events",
         "replayed": "true"
       }
     },
     {
-      "sequence": 16,
+      "sequence": 19,
       "id": "stele:idempotent:parent:terminal",
       "kind": "terminal",
       "parent_id": "stele:idempotent:parent",

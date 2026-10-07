@@ -150,7 +150,7 @@ func (r *outboxRepository) Claim(ctx context.Context, kind OutboxKind, owner str
 	if err != nil {
 		return OutboxMessage{}, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	now := time.Now().UTC()
 	var msg OutboxMessage
 	var leaseUntil sql.NullString

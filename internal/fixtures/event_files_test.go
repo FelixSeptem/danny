@@ -13,7 +13,7 @@ func TestEventFixtureContainsCorrelatedEnvelopeKinds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	wantKinds := map[string]bool{"parent": false, "child": false, "team": false, "mailbox": false, "scheduler": false, "terminal": false}
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {

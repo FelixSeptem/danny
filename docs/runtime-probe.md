@@ -67,17 +67,31 @@ through deterministic fixtures. Stele persistence cases use the real service
 and PostgreSQL system of record; they are never replaced with an in-process
 store.
 
-The latest Compose-backed Stele run is recorded at
+The latest committed Compose-backed Stele run is recorded at
 `testdata/runtimeprobe/stele-compose.evidence.json`. Context, basic memory
 append/query, fresh-adapter restart projection, and occurrence replay passed
 against `github.com/FelixSeptem/stele
-v0.0.0-20261006031612-63d1f3dc4675`. The provider principal UUID issue from
-`STELE-002` and the canonical path promotion issue from `STELE-003` are fixed
-upstream. After the existing asynchronous governance worker completes, the
-references case is `passed`: both task and run exact-path reads return true,
-and the database preserves the non-root paths in candidate and canonical rows.
+v0.0.0-20261007033528-a556ac0ddacc`. The provider principal UUID issue from
+`STELE-002`, canonical path promotion issue from `STELE-003`, summary
+canonical persistence issue from `STELE-004`, and provenance UUID issue from
+`STELE-005` are fixed upstream. After the existing asynchronous governance
+worker completes, the references case is `passed`: both task and run
+exact-path reads return true, and the database preserves the non-root paths in
+candidate and canonical rows.
 The adapter uses Stele's documented `conversation.message` event type and
 continues sending `input.top_k`; it does not maintain a local reference store
 or rewrite paths. Because Stele governance runs asynchronously in the worker,
 the live smoke verification waits for that existing worker projection before
 performing the exact-path read.
+
+The compilation probe uses the same public event contract with a
+reference-first `conversation.message` payload at
+`knowledge/generations/<generation-id>`. It verifies the original event ID is
+returned on replay and performs an exact-path lookup without copying artifact
+bodies into Stele. On the clean pinned `a556ac0ddacc` Compose validation, the
+API, replay, exact-path lookup, and asynchronous governance all passed. The
+database showed processed raw events with no governance error, promoted
+candidate memories, and active canonical memories. The probe and adapter do
+not add a provenance rewrite, skip governance, or maintain a local reference
+store; the upstream provenance fix is recorded as `STELE-005` in
+`docs/upstream/stele-findings.md`.

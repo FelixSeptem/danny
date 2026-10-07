@@ -58,10 +58,6 @@ func TestClientExposesScopedTaskAndRunReferences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var adapter runtimeprobe.SteleAdapter = client
-	if adapter == nil {
-		t.Fatal("stele adapter must implement the runtime probe boundary")
-	}
 	if _, err := client.References(context.Background(), runtimeprobe.ProbeRequest{CorrelationID: "corr", ParentID: "parent", Input: "reference", Capability: "references"}); err == nil {
 		t.Fatal("References unexpectedly reached an unavailable endpoint")
 	}
