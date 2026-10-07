@@ -35,6 +35,22 @@ type AdmissionRequest struct {
 	RequestedMode                                                   knowledge.ExecutionMode
 }
 
+type ScheduledAdmissionRequest struct {
+	Occurrence    storage.ScheduleOccurrence
+	TaskID        string
+	Profile       knowledge.TaskProfile
+	Policy        knowledge.Policy
+	RequestedMode knowledge.ExecutionMode
+}
+
+type ScheduledRunRequest struct {
+	Occurrence    storage.ScheduleOccurrence
+	TaskID        string
+	Profile       knowledge.TaskProfile
+	Policy        knowledge.Policy
+	RequestedMode knowledge.ExecutionMode
+}
+
 type RunResult struct {
 	Execution storage.TaskExecution
 	Plan      knowledge.ExecutionPlan
@@ -75,6 +91,31 @@ func (h *Harness) Admit(ctx context.Context, req AdmissionRequest) (RunResult, e
 		return RunResult{}, err
 	}
 	return RunResult{Execution: stored, Plan: plan}, nil
+}
+
+// AdmitScheduled binds the harness admission to the persisted occurrence
+// authority. Retries must present the same policy, capability, projection,
+// plan, and effect namespace values that were admitted originally.
+func (h *Harness) AdmitScheduled(ctx context.Context, req ScheduledAdmissionRequest) (RunResult, error) {
+	o := req.Occurrence
+	if o.ScheduleID == "" || o.OccurrenceKey == "" || o.CorrelationID == "" || o.PolicyDigest == "" || o.CapabilityDigest == "" || o.PlanVersion == "" || o.ProjectionDigest == "" || o.EffectNamespace == "" {
+		return RunResult{}, ErrInvalidHarnessRequest
+	}
+	if req.Policy.CapabilityDigest() != o.CapabilityDigest {
+		return RunResult{}, fmt.Errorf("%w: scheduled capability digest mismatch", ErrRecoveryMismatch)
+	}
+	return h.Admit(ctx, AdmissionRequest{ExecutionID: o.ExecutionID, TaskID: req.TaskID, ParentRunID: o.CorrelationID, CorrelationID: o.CorrelationID, IdempotencyKey: o.IdempotencyKey, Profile: req.Profile, Policy: req.Policy, ProjectionDigest: o.ProjectionDigest, RequestedMode: req.RequestedMode, TaskRevision: o.ScheduleRevision})
+}
+
+func (h *Harness) RunScheduled(ctx context.Context, req ScheduledRunRequest) (RunResult, error) {
+	admitted, err := h.AdmitScheduled(ctx, ScheduledAdmissionRequest(req))
+	if err != nil {
+		return RunResult{}, err
+	}
+	if req.Occurrence.PlanVersion != "" && admitted.Plan.Version != req.Occurrence.PlanVersion {
+		return RunResult{}, fmt.Errorf("%w: planner version changed from %s to %s", ErrRecoveryMismatch, req.Occurrence.PlanVersion, admitted.Plan.Version)
+	}
+	return h.Execute(ctx, admitted.Execution.ID)
 }
 
 func (h *Harness) Execute(ctx context.Context, executionID string) (RunResult, error) {

@@ -29,6 +29,30 @@ func TestSQLiteStoreInitializesAndReportsSchemaVersion(t *testing.T) {
 	}
 }
 
+func TestForwardMigrationPreservesExistingHarnessTables(t *testing.T) {
+	ctx := context.Background()
+	store, err := OpenSQLite(ctx, "file:forward-migration?mode=memory&cache=shared")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = store.Close() }()
+	if _, err := store.DB().ExecContext(ctx, `CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL); INSERT INTO schema_migrations(version, applied_at) VALUES (2, '2026-10-06T00:00:00Z'); CREATE TABLE tasks (id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'open', revision BIGINT NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); CREATE TABLE task_harness_executions (id TEXT PRIMARY KEY, task_id TEXT NOT NULL, task_revision BIGINT NOT NULL DEFAULT 0, status TEXT NOT NULL, revision BIGINT NOT NULL DEFAULT 1, mode TEXT NOT NULL, plan_version TEXT NOT NULL, plan_digest TEXT NOT NULL, capability_digest TEXT NOT NULL, projection_digest TEXT NOT NULL, parent_run_id TEXT NOT NULL DEFAULT '', correlation_id TEXT NOT NULL, idempotency_key TEXT NOT NULL, input TEXT NOT NULL DEFAULT '', result BYTEA NOT NULL DEFAULT '', failure_class BYTEA NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(idempotency_key))`); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Tasks().Create(ctx, Task{ID: "forward-task", Title: "preserved"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Schedules().CreateSchedule(ctx, Schedule{ID: "forward-schedule", Cron: "0 * * * *", Timezone: "UTC", ActionType: ScheduleActionAgent, MisfirePolicy: MisfireSkip}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB().ExecContext(ctx, `SELECT id FROM task_harness_executions LIMIT 1`); err != nil {
+		t.Fatalf("harness table missing after migration: %v", err)
+	}
+}
+
 func TestTaskRevisionRejectsStaleUpdate(t *testing.T) {
 	ctx := context.Background()
 	store, err := OpenSQLite(ctx, "file:revision-contract?mode=memory&cache=shared")

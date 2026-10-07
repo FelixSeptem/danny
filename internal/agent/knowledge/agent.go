@@ -175,6 +175,10 @@ func (r *ToolRegistry) InvokeOutcome(ctx context.Context, policy Policy, call To
 	if err := NewCapabilityGate().Authorize(policy, call); err != nil {
 		return InvocationOutcome{Event: PolicyEvent{Kind: EventPolicyViolation, RunID: call.RunID, CorrelationID: call.CorrelationID, Tool: call.Name, Reason: err.Error(), CapabilityDigest: policy.CapabilityDigest()}, Err: fmt.Errorf("%w: %w", ErrPolicyViolation, err)}
 	}
+	if isMutation(call.Name) && containsUntrustedText(call.Input) {
+		err := fmt.Errorf("%w: untrusted input cannot authorize mutation", ErrCapabilityDenied)
+		return InvocationOutcome{Event: PolicyEvent{Kind: EventPolicyViolation, RunID: call.RunID, CorrelationID: call.CorrelationID, Tool: call.Name, Reason: err.Error(), CapabilityDigest: policy.CapabilityDigest()}, Err: fmt.Errorf("%w: %w", ErrPolicyViolation, err)}
+	}
 	if err := def.Invoke(ctx, call.Input); err != nil {
 		return InvocationOutcome{Event: PolicyEvent{Kind: EventToolFailed, RunID: call.RunID, CorrelationID: call.CorrelationID, Tool: call.Name, Reason: err.Error(), CapabilityDigest: policy.CapabilityDigest()}, Err: err}
 	}
@@ -201,6 +205,28 @@ func (g *CapabilityGate) Authorize(policy Policy, call ToolCall) error {
 }
 func isMutation(name string) bool {
 	return name == "save_memory" || name == "create_task" || name == "create_schedule" || name == "send_webhook" || name == "commit_compilation"
+}
+
+func containsUntrustedText(value any) bool {
+	switch candidate := value.(type) {
+	case UntrustedText:
+		return candidate.IsUntrusted()
+	case *UntrustedText:
+		return candidate != nil && candidate.IsUntrusted()
+	case map[string]any:
+		for _, item := range candidate {
+			if containsUntrustedText(item) {
+				return true
+			}
+		}
+	case []any:
+		for _, item := range candidate {
+			if containsUntrustedText(item) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 type ExecutionMode string

@@ -121,6 +121,27 @@ func (r *effectRepository) finish(ctx context.Context, id string, status EffectS
 
 type outboxRepository struct{ store *Store }
 
+func (r *outboxRepository) Get(ctx context.Context, kind OutboxKind, idempotencyKey string) (OutboxMessage, error) {
+	var message OutboxMessage
+	var lease sql.NullString
+	var available, created, updated string
+	err := r.store.db.QueryRowContext(ctx, r.store.bind(`SELECT id,kind,idempotency_key,payload_version,payload,status,attempts,owner,lease_until,available_at,created_at,updated_at FROM outboxes WHERE kind=? AND idempotency_key=?`), kind, idempotencyKey).Scan(&message.ID, &message.Kind, &message.IdempotencyKey, &message.PayloadVersion, &message.Payload, &message.Status, &message.Attempts, &message.Owner, &lease, &available, &created, &updated)
+	if errors.Is(err, sql.ErrNoRows) {
+		return OutboxMessage{}, ErrNotFound
+	}
+	if err != nil {
+		return OutboxMessage{}, err
+	}
+	message.AvailableAt, _ = time.Parse(time.RFC3339Nano, available)
+	message.CreatedAt, _ = time.Parse(time.RFC3339Nano, created)
+	message.UpdatedAt, _ = time.Parse(time.RFC3339Nano, updated)
+	if lease.Valid {
+		until, _ := time.Parse(time.RFC3339Nano, lease.String)
+		message.LeaseUntil = &until
+	}
+	return message, nil
+}
+
 func (r *outboxRepository) Enqueue(ctx context.Context, message OutboxMessage) error {
 	if message.ID == "" {
 		message.ID = uuid.NewString()
@@ -146,6 +167,14 @@ func (r *outboxRepository) Enqueue(ctx context.Context, message OutboxMessage) e
 }
 
 func (r *outboxRepository) Claim(ctx context.Context, kind OutboxKind, owner string, lease time.Duration) (OutboxMessage, error) {
+	return r.claim(ctx, kind, "", owner, lease)
+}
+
+func (r *outboxRepository) ClaimByKey(ctx context.Context, kind OutboxKind, idempotencyKey, owner string, lease time.Duration) (OutboxMessage, error) {
+	return r.claim(ctx, kind, idempotencyKey, owner, lease)
+}
+
+func (r *outboxRepository) claim(ctx context.Context, kind OutboxKind, idempotencyKey, owner string, lease time.Duration) (OutboxMessage, error) {
 	tx, err := r.store.db.BeginTx(ctx, nil)
 	if err != nil {
 		return OutboxMessage{}, err
@@ -155,7 +184,14 @@ func (r *outboxRepository) Claim(ctx context.Context, kind OutboxKind, owner str
 	var msg OutboxMessage
 	var leaseUntil sql.NullString
 	var available, created, updated string
-	err = tx.QueryRowContext(ctx, r.store.bind(`SELECT id,kind,idempotency_key,payload_version,payload,status,attempts,owner,lease_until,available_at,created_at,updated_at FROM outboxes WHERE kind=? AND ((status='pending' AND available_at<=?) OR (status='leased' AND lease_until<=?)) ORDER BY created_at LIMIT 1`), kind, now.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano)).Scan(&msg.ID, &msg.Kind, &msg.IdempotencyKey, &msg.PayloadVersion, &msg.Payload, &msg.Status, &msg.Attempts, &msg.Owner, &leaseUntil, &available, &created, &updated)
+	query := `SELECT id,kind,idempotency_key,payload_version,payload,status,attempts,owner,lease_until,available_at,created_at,updated_at FROM outboxes WHERE kind=? AND ((status='pending' AND available_at<=?) OR (status='leased' AND lease_until<=?))`
+	args := []any{kind, now.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano)}
+	if idempotencyKey != "" {
+		query += ` AND idempotency_key=?`
+		args = append(args, idempotencyKey)
+	}
+	query += ` ORDER BY created_at LIMIT 1`
+	err = tx.QueryRowContext(ctx, r.store.bind(query), args...).Scan(&msg.ID, &msg.Kind, &msg.IdempotencyKey, &msg.PayloadVersion, &msg.Payload, &msg.Status, &msg.Attempts, &msg.Owner, &leaseUntil, &available, &created, &updated)
 	if errors.Is(err, sql.ErrNoRows) {
 		return OutboxMessage{}, ErrNotFound
 	}

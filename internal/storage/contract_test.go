@@ -86,3 +86,50 @@ func TestPostgresRepositoryContract(t *testing.T) {
 		t.Fatalf("stale Release error = %v, want ErrLeaseLost", err)
 	}
 }
+
+func TestPostgresScheduleAndDeliveryContract(t *testing.T) {
+	dsn := os.Getenv("DANNY_TEST_POSTGRES_URL")
+	if dsn == "" {
+		t.Skip("DANNY_TEST_POSTGRES_URL is not configured")
+	}
+	ctx := context.Background()
+	store, err := OpenPostgres(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPostgres() error = %v", err)
+	}
+	defer func() { _ = store.Close() }()
+	schema := "danny_schedule_contract_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	if _, err := store.DB().ExecContext(ctx, `CREATE SCHEMA `+schema); err != nil {
+		t.Fatalf("create contract schema: %v", err)
+	}
+	defer func() { _, _ = store.DB().ExecContext(ctx, `DROP SCHEMA `+schema+` CASCADE`) }()
+	if _, err := store.DB().ExecContext(ctx, `SET search_path TO `+schema); err != nil {
+		t.Fatalf("set contract schema: %v", err)
+	}
+	if err := store.Migrate(ctx); err != nil {
+		t.Fatalf("Migrate() error = %v", err)
+	}
+	schedule, err := store.Schedules().CreateSchedule(ctx, Schedule{ID: "schedule-" + uuid.NewString(), Cron: "*/5 * * * *", Timezone: "UTC", ActionType: ScheduleActionAgent, MisfirePolicy: MisfireSkip, Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	occurrence, err := store.Schedules().AdmitOccurrence(ctx, ScheduleOccurrence{ScheduleID: schedule.ID, ScheduleRevision: schedule.Revision, OccurrenceKey: "occurrence-1", Timezone: "UTC", TzdataVersion: "test", DSTDecision: DSTNormal, IdempotencyKey: schedule.ID + ":occurrence-1"}, OutboxMessage{Kind: OutboxKindSchedule, IdempotencyKey: schedule.ID + ":occurrence-1", Payload: []byte("payload")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	replay, err := store.Schedules().AdmitOccurrence(ctx, ScheduleOccurrence{ScheduleID: schedule.ID, ScheduleRevision: schedule.Revision, OccurrenceKey: "occurrence-1", IdempotencyKey: occurrence.IdempotencyKey}, OutboxMessage{Kind: OutboxKindSchedule, IdempotencyKey: occurrence.IdempotencyKey})
+	if err != nil || replay.ID != occurrence.ID {
+		t.Fatalf("occurrence replay = %#v, err=%v", replay, err)
+	}
+	delivery, err := store.Webhooks().CreateDelivery(ctx, WebhookDelivery{EffectKey: schedule.ID + ":webhook", URL: "http://127.0.0.1/webhook", Payload: []byte("payload")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	claimed, err := store.Webhooks().ClaimDelivery(ctx, delivery.ID, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Webhooks().MarkDelivered(ctx, claimed.ID, claimed.Owner, claimed.Revision); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -10,14 +10,17 @@ import (
 )
 
 var (
-	ErrRevisionConflict  = errors.New("storage: revision conflict")
-	ErrLeaseLost         = errors.New("storage: lease lost")
-	ErrEffectInProgress  = errors.New("storage: effect in progress")
-	ErrNotFound          = errors.New("storage: not found")
-	ErrInvalidTransition = errors.New("storage: invalid execution transition")
+	ErrRevisionConflict   = errors.New("storage: revision conflict")
+	ErrLeaseLost          = errors.New("storage: lease lost")
+	ErrEffectInProgress   = errors.New("storage: effect in progress")
+	ErrNotFound           = errors.New("storage: not found")
+	ErrInvalidTransition  = errors.New("storage: invalid execution transition")
+	ErrInvalidSchedule    = errors.New("storage: invalid schedule")
+	ErrOccurrenceConflict = errors.New("storage: occurrence conflict")
+	ErrDeliveryConflict   = errors.New("storage: delivery conflict")
 )
 
-const CurrentSchemaVersion = 2
+const CurrentSchemaVersion = 3
 
 type Store struct {
 	db              *sql.DB
@@ -103,6 +106,119 @@ const (
 	OutboxKindWebhook  OutboxKind = "webhook_delivery"
 )
 
+type ScheduleActionType string
+
+const (
+	ScheduleActionAgent       ScheduleActionType = "agent"
+	ScheduleActionFixed       ScheduleActionType = "fixed"
+	ScheduleActionCompilation ScheduleActionType = "compilation"
+)
+
+type MisfirePolicy string
+
+const (
+	MisfireSkip           MisfirePolicy = "skip"
+	MisfireCoalesceLatest MisfirePolicy = "coalesce_latest"
+	MisfireBackfill       MisfirePolicy = "backfill"
+)
+
+type Schedule struct {
+	ID, Cron, Timezone, Instruction, Payload string
+	ActionType                               ScheduleActionType
+	Enabled                                  bool
+	RetryLimit, BackfillLimit                int
+	MisfirePolicy                            MisfirePolicy
+	Revision                                 int64
+	CreatedAt, UpdatedAt                     time.Time
+}
+
+type SchedulePatch struct {
+	Cron, Timezone, Instruction, Payload *string
+	ActionType                           *ScheduleActionType
+	Enabled                              *bool
+	RetryLimit, BackfillLimit            *int
+	MisfirePolicy                        *MisfirePolicy
+}
+
+type OccurrenceStatus string
+
+const (
+	OccurrenceAdmitted         OccurrenceStatus = "admitted"
+	OccurrenceDispatching      OccurrenceStatus = "dispatching"
+	OccurrenceDispatched       OccurrenceStatus = "dispatched"
+	OccurrenceRunning          OccurrenceStatus = "running"
+	OccurrenceSucceeded        OccurrenceStatus = "succeeded"
+	OccurrenceFailed           OccurrenceStatus = "failed"
+	OccurrenceRetryable        OccurrenceStatus = "retryable"
+	OccurrenceDeadLettered     OccurrenceStatus = "dead_lettered"
+	OccurrenceSkipped          OccurrenceStatus = "skipped"
+	OccurrenceCoalesced        OccurrenceStatus = "coalesced"
+	OccurrenceRecoveryRequired OccurrenceStatus = "recovery_required"
+)
+
+type DSTDecision string
+
+const (
+	DSTNormal             DSTDecision = "normal"
+	DSTSkippedNonexistent DSTDecision = "skipped_nonexistent"
+	DSTEarlierAmbiguous   DSTDecision = "earlier_ambiguous"
+	DSTCoalesced          DSTDecision = "coalesced"
+	DSTBackfilled         DSTDecision = "backfilled"
+)
+
+type ScheduleOccurrence struct {
+	ID, ScheduleID, OccurrenceKey                                                  string
+	ScheduleRevision                                                               int64
+	LocalTime, ResolvedAt                                                          time.Time
+	Timezone, TzdataVersion                                                        string
+	DSTDecision                                                                    DSTDecision
+	Status                                                                         OccurrenceStatus
+	Revision                                                                       int64
+	AttemptCount                                                                   int
+	ExecutionID, CorrelationID, IdempotencyKey                                     string
+	PolicyDigest, CapabilityDigest, PlanVersion, ProjectionDigest, EffectNamespace string
+	LastError                                                                      string
+	CreatedAt, UpdatedAt                                                           time.Time
+}
+
+type OccurrencePatch struct {
+	Status                     OccurrenceStatus
+	ExecutionID, CorrelationID *string
+	AttemptCount               *int
+	LastError                  *string
+}
+
+type DispatchAttempt struct {
+	ID, OccurrenceID, OutboxID string
+	Status                     string
+	Attempt                    int
+	Owner                      string
+	Fencing                    int64
+	CreatedAt, UpdatedAt       time.Time
+}
+
+type WebhookDeliveryStatus string
+
+const (
+	DeliveryPending   WebhookDeliveryStatus = "pending"
+	DeliveryLeased    WebhookDeliveryStatus = "leased"
+	DeliveryDelivered WebhookDeliveryStatus = "delivered"
+	DeliveryRetryable WebhookDeliveryStatus = "retryable"
+	DeliveryFailed    WebhookDeliveryStatus = "failed"
+)
+
+type WebhookDelivery struct {
+	ID, ExecutionID, OccurrenceID, EffectKey, URL string
+	Payload                                       []byte
+	Status                                        WebhookDeliveryStatus
+	Revision, AttemptCount                        int64
+	NextAttemptAt                                 time.Time
+	Owner                                         string
+	LeaseUntil                                    *time.Time
+	LastError                                     string
+	CreatedAt, UpdatedAt                          time.Time
+}
+
 type OutboxMessage struct {
 	ID             string
 	Kind           OutboxKind
@@ -165,6 +281,8 @@ type EffectRepository interface {
 
 type OutboxRepository interface {
 	Enqueue(context.Context, OutboxMessage) error
+	Get(context.Context, OutboxKind, string) (OutboxMessage, error)
+	ClaimByKey(context.Context, OutboxKind, string, string, time.Duration) (OutboxMessage, error)
 	Claim(context.Context, OutboxKind, string, time.Duration) (OutboxMessage, error)
 	Ack(context.Context, string, string) error
 	Retry(context.Context, string, string, time.Time) error
@@ -181,6 +299,34 @@ type GenerationRepository interface {
 type LeaseRepository interface {
 	Acquire(context.Context, string, string, string, time.Duration) (Lease, error)
 	Release(context.Context, string, string, string, int64) error
+}
+
+type ScheduleRepository interface {
+	CreateSchedule(context.Context, Schedule) (Schedule, error)
+	GetSchedule(context.Context, string) (Schedule, error)
+	UpdateSchedule(context.Context, string, int64, SchedulePatch) (Schedule, error)
+	AdmitOccurrence(context.Context, ScheduleOccurrence, OutboxMessage) (ScheduleOccurrence, error)
+	GetOccurrence(context.Context, string) (ScheduleOccurrence, error)
+	FindOccurrence(context.Context, string, string) (ScheduleOccurrence, error)
+	UpdateOccurrence(context.Context, string, int64, OccurrencePatch) (ScheduleOccurrence, error)
+	ListOccurrences(context.Context, string) ([]ScheduleOccurrence, error)
+	RecordDispatchAttempt(context.Context, DispatchAttempt) (DispatchAttempt, error)
+	ListDispatchAttempts(context.Context, string) ([]DispatchAttempt, error)
+}
+
+type WebhookRepository interface {
+	CreateDelivery(context.Context, WebhookDelivery) (WebhookDelivery, error)
+	GetDelivery(context.Context, string) (WebhookDelivery, error)
+	ClaimDelivery(context.Context, string, time.Duration) (WebhookDelivery, error)
+	MarkDelivered(context.Context, string, string, int64) error
+	RetryDelivery(context.Context, string, string, int64, time.Time, string) error
+	FailDelivery(context.Context, string, string, int64, string) error
+}
+
+// TerminalDeliveryRepository commits an execution terminal state and its
+// durable webhook intent in one application transaction.
+type TerminalDeliveryRepository interface {
+	CommitTerminalWithDelivery(context.Context, string, int64, ExecutionStatus, []byte, []byte, WebhookDelivery) (TaskExecution, WebhookDelivery, error)
 }
 
 // ExecutionStatus is the durable state of a task execution harness run.
@@ -276,3 +422,8 @@ func (s *Store) Outbox() OutboxRepository          { return &outboxRepository{st
 func (s *Store) Generations() GenerationRepository { return &generationRepository{store: s} }
 func (s *Store) Leases() LeaseRepository           { return &leaseRepository{store: s} }
 func (s *Store) Executions() ExecutionRepository   { return &executionRepository{store: s} }
+func (s *Store) Schedules() ScheduleRepository     { return &scheduleRepository{store: s} }
+func (s *Store) Webhooks() WebhookRepository       { return &webhookRepository{store: s} }
+func (s *Store) TerminalDeliveries() TerminalDeliveryRepository {
+	return &webhookRepository{store: s}
+}
