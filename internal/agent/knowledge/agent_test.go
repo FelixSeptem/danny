@@ -160,6 +160,22 @@ func TestPlannerNormalizesDependencyOrderAndBoundsFanout(t *testing.T) {
 	}
 }
 
+func TestStableDigestsNormalizeProfilesAndPlans(t *testing.T) {
+	left := TaskProfile{Objective: "same", Complexity: 3, Parallelism: 0, Budget: 1000, Dependencies: []string{"b", "a"}}
+	right := TaskProfile{Objective: "same", Complexity: 3, Parallelism: 1, Budget: 1000, Dependencies: []string{"a", "b"}}
+	if DigestTaskProfile(left) != DigestTaskProfile(right) {
+		t.Fatalf("normalized profile digests differ: %s %s", DigestTaskProfile(left), DigestTaskProfile(right))
+	}
+	planner := NewPlanner("planner.v1")
+	one, err := planner.Plan(context.Background(), left)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if DigestExecutionPlan(one) != one.Digest {
+		t.Fatalf("plan digest helper does not match persisted digest: %s %s", DigestExecutionPlan(one), one.Digest)
+	}
+}
+
 func TestAgentDirectAdmissionCorrelatesPlanAndProjection(t *testing.T) {
 	exec := &fakeExecutor{outcome: ExecutionOutcome{Status: "succeeded", Result: "answer"}}
 	store := NewMemoryEvidenceStore()

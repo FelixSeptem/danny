@@ -44,6 +44,21 @@ go run ./cmd/personal-agent
 
 Startup reconciliation rebuilds materialized artifacts from every committed generation manifest. It does not publish staged generations.
 
+## Task execution harness
+
+The task harness uses the same SQLite/PostgreSQL repository boundary. Admission
+commits the execution row and initial plan notebook entry together before a
+Baymax call. Plan versions are immutable; checkpoints, replans, and parent or
+child evidence are retained for restart recovery. Every execution mutation
+uses an expected revision, and evidence uses an execution-scoped effect key so
+replayed terminal writes return the original result.
+
+The durable execution state machine supports admission, dispatch, running,
+pause, retry, replan, recovery-required, blocked, and terminal states. The
+first harness release supports `direct` and bounded `subagent_fanout`; other
+Baymax shapes return typed unsupported-mode results until their roadmap
+boundaries are implemented.
+
 ## Verification
 
 Run the SQLite contract suite with:

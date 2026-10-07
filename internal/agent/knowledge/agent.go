@@ -221,10 +221,13 @@ type TaskProfile struct {
 	Dependencies                                                                []string
 }
 type ExecutionPlan struct {
-	Version, Digest, Rationale, CapabilityDigest string
-	Mode                                         ExecutionMode
-	ChildLimit, PerChildBudget, AggregationLimit int
-	ProfileDigest                                string
+	Version, Digest, Rationale, CapabilityDigest                        string
+	Mode                                                                ExecutionMode
+	ChildLimit, PerChildBudget, AggregationLimit                        int
+	ProfileDigest                                                       string
+	Budget                                                              int
+	WriteScope                                                          int
+	CapabilityScope, ProjectionScope, ProjectionDigest, EffectNamespace string
 }
 type Planner struct{ Version string }
 
@@ -252,7 +255,7 @@ func (p Planner) PlanMode(_ context.Context, profile TaskProfile, requested Exec
 	profileRaw, _ := json.Marshal(profile)
 	profileSum := sha256.Sum256(profileRaw)
 	profileDigest := hex.EncodeToString(profileSum[:])
-	plan := ExecutionPlan{Version: p.Version, Mode: mode, ProfileDigest: profileDigest, CapabilityDigest: fmt.Sprintf("profile:%d:%d:%d", profile.Complexity, profile.WriteScope, profile.Budget)}
+	plan := ExecutionPlan{Version: p.Version, Mode: mode, ProfileDigest: profileDigest, CapabilityDigest: fmt.Sprintf("profile:%d:%d:%d", profile.Complexity, profile.WriteScope, profile.Budget), Budget: profile.Budget, WriteScope: profile.WriteScope, CapabilityScope: "profile", ProjectionScope: "authorized", EffectNamespace: "task"}
 	if mode == ModeDirect {
 		plan.Rationale = "low complexity or ordered execution"
 	} else {
@@ -283,10 +286,12 @@ const (
 
 type Checkpoint struct {
 	RunID, PlanVersion, PlanDigest, CapabilityDigest, ProjectionDigest string
+	CurrentStep                                                        string
+	CompletedEffectKeys                                                string
 	PauseReason                                                        PauseReason
 	PreviousPlanVersion, ReplanReason                                  string
 }
-type ResumeRequest struct{ PlanVersion, CapabilityDigest string }
+type ResumeRequest struct{ PlanVersion, PlanDigest, CapabilityDigest, ProjectionDigest, CurrentStep string }
 
 func (c Checkpoint) ValidateResume(req ResumeRequest) error {
 	if c.PlanVersion != req.PlanVersion {
@@ -294,6 +299,15 @@ func (c Checkpoint) ValidateResume(req ResumeRequest) error {
 	}
 	if c.CapabilityDigest != req.CapabilityDigest {
 		return ErrCapabilityMismatch
+	}
+	if req.PlanDigest != "" && c.PlanDigest != req.PlanDigest {
+		return ErrPlanMismatch
+	}
+	if req.ProjectionDigest != "" && c.ProjectionDigest != req.ProjectionDigest {
+		return ErrPlanMismatch
+	}
+	if req.CurrentStep != "" && c.CurrentStep != req.CurrentStep {
+		return ErrPlanMismatch
 	}
 	return nil
 }
@@ -427,6 +441,41 @@ func digestPlan(plan ExecutionPlan) string {
 	raw, _ := json.Marshal(copy)
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
+}
+
+// DigestTaskProfile returns the stable digest used by the planner after
+// normalizing dependency order and the minimum parallelism bound.
+func DigestTaskProfile(profile TaskProfile) string {
+	profile.Dependencies = append([]string(nil), profile.Dependencies...)
+	sort.Strings(profile.Dependencies)
+	if profile.Parallelism < 1 {
+		profile.Parallelism = 1
+	}
+	raw, _ := json.Marshal(profile)
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:])
+}
+
+// DigestExecutionPlan excludes the digest field itself and is safe to use for
+// persisted plan identity comparisons.
+func DigestExecutionPlan(plan ExecutionPlan) string { return digestPlan(plan) }
+
+type AuthorityComparison struct {
+	WriteScopeExpanded, ExternalEffectsExpanded, BudgetExpanded bool
+}
+
+func (c AuthorityComparison) Expanded() bool {
+	return c.WriteScopeExpanded || c.ExternalEffectsExpanded || c.BudgetExpanded
+}
+
+// CompareAuthority is intentionally monotonic: a replan may retain or reduce
+// authority without entering approval, but any expansion must pause first.
+func CompareAuthority(previous, next ExecutionPlan) AuthorityComparison {
+	return AuthorityComparison{
+		WriteScopeExpanded:      next.WriteScope > previous.WriteScope,
+		ExternalEffectsExpanded: next.EffectNamespace != previous.EffectNamespace && next.EffectNamespace != "",
+		BudgetExpanded:          next.Budget > previous.Budget,
+	}
 }
 
 func (e ExecutionEvidence) Validate() error {

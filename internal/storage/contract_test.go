@@ -68,6 +68,16 @@ func TestPostgresRepositoryContract(t *testing.T) {
 	if err := store.Outbox().Ack(ctx, claimed.ID, "contract-worker"); err != nil {
 		t.Fatalf("Ack outbox: %v", err)
 	}
+	admitted, err := store.Executions().Admit(ctx, ExecutionAdmission{Execution: TaskExecution{ID: "execution-" + uuid.NewString(), TaskID: task.ID, TaskRevision: updated.Revision, CorrelationID: "corr-" + uuid.NewString(), IdempotencyKey: "execution-" + uuid.NewString(), Mode: "direct", PlanVersion: "planner.v1", PlanDigest: "plan", CapabilityDigest: "cap", ProjectionDigest: "projection", Input: "contract"}, Plan: ExecutionPlanRecord{Version: "planner.v1", Mode: "direct", PlanDigest: "plan", CapabilityDigest: "cap", ProjectionDigest: "projection"}})
+	if err != nil {
+		t.Fatalf("execution admission: %v", err)
+	}
+	if admitted.Status != ExecutionAdmitted {
+		t.Fatalf("execution status = %s", admitted.Status)
+	}
+	if _, err := store.Executions().UpdateExecution(ctx, admitted.ID, admitted.Revision, ExecutionSucceeded, []byte("ok"), nil); err != nil {
+		t.Fatalf("execution terminal update: %v", err)
+	}
 	lease, err := store.Leases().Acquire(ctx, "contract", task.ID, "worker-1", time.Minute)
 	if err != nil {
 		t.Fatalf("Acquire lease: %v", err)

@@ -17,6 +17,11 @@ This checklist is the review artifact for the Milestone 2 canonical schema. The 
 - [x] `idempotency_effects` stores operation namespace, subject, effect key, status, request, and original result.
 - [x] `leases` stores owner, fencing value, expiry, and heartbeat metadata.
 - [x] `outboxes` stores typed delivery intent, payload version, stable idempotency key, attempts, lease, and retry time.
+- [x] `task_harness_executions` stores durable task run status, revision, plan/capability/projection digests, correlation, and admission idempotency.
+- [x] `task_harness_plans` stores immutable plan notebook versions, authority bounds, child limits, effect references, and replan rationale.
+- [x] `task_harness_checkpoints` stores safe-point recovery identity, pause reason, current step, and completed effect references.
+- [x] `task_harness_replans` stores plan lineage and authority comparison history.
+- [x] `task_harness_evidence` stores parent/child terminal evidence with stable effect keys.
 
 ## Invariants
 
@@ -24,6 +29,9 @@ This checklist is the review artifact for the Milestone 2 canonical schema. The 
 - [x] `(namespace, subject, effect_key)` is unique for idempotent effects.
 - [x] `(kind, idempotency_key)` is unique for outbox delivery intent.
 - [x] `(generation_id, kind, content_hash)` is unique for artifact identity.
+- [x] `(execution_id, version)` is unique for immutable plan notebook entries.
+- [x] `(execution_id, effect_key)` is unique for replay-safe execution evidence.
+- [x] Execution terminal and checkpoint mutations require the expected revision.
 - [x] Committed generations require a non-null commit marker.
 - [x] Mutable task updates require the expected revision predicate.
 - [x] Outbox claims require a pending row or an expired leased row.
@@ -37,3 +45,5 @@ This checklist is the review artifact for the Milestone 2 canonical schema. The 
 - [x] Effect result and the protected mutation are required to share a transaction boundary.
 - [x] Generation manifest and commit marker commit together.
 - [x] Materialization uses atomic temporary-file rename and can be repeated from the manifest.
+- [x] Execution admission writes the execution row and initial plan notebook entry in one transaction.
+- [x] Execution evidence replay returns the original result for the same effect key.
