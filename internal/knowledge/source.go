@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/FelixSeptem/danny/internal/parser"
 )
 
 var (
@@ -17,8 +19,16 @@ var (
 )
 
 type SourceInput struct {
-	Path    string `json:"path"`
-	Content string `json:"content"`
+	Path              string           `json:"path"`
+	Content           string           `json:"content"`
+	Format            string           `json:"format,omitempty"`
+	ParserVersion     string           `json:"parser_version,omitempty"`
+	ProviderMode      string           `json:"provider_mode,omitempty"`
+	SourceFingerprint string           `json:"source_fingerprint,omitempty"`
+	ParserStatus      string           `json:"parser_status,omitempty"`
+	ParserFailure     string           `json:"parser_failure,omitempty"`
+	Warnings          []parser.Warning `json:"warnings,omitempty"`
+	UntrustedSource   bool             `json:"untrusted_source,omitempty"`
 }
 
 type SourceRange struct {
@@ -38,11 +48,19 @@ type Section struct {
 }
 
 type SourceMetadata struct {
-	SourceID    string    `json:"source_id"`
-	Path        string    `json:"path"`
-	ContentHash string    `json:"content_hash"`
-	Content     []byte    `json:"content,omitempty"`
-	Sections    []Section `json:"sections,omitempty"`
+	SourceID          string           `json:"source_id"`
+	Path              string           `json:"path"`
+	ContentHash       string           `json:"content_hash"`
+	Content           []byte           `json:"content,omitempty"`
+	Sections          []Section        `json:"sections,omitempty"`
+	Format            string           `json:"format,omitempty"`
+	ParserVersion     string           `json:"parser_version,omitempty"`
+	ProviderMode      string           `json:"provider_mode,omitempty"`
+	SourceFingerprint string           `json:"source_fingerprint,omitempty"`
+	ParserStatus      string           `json:"parser_status,omitempty"`
+	ParserFailure     string           `json:"parser_failure,omitempty"`
+	Warnings          []parser.Warning `json:"warnings,omitempty"`
+	UntrustedSource   bool             `json:"untrusted_source"`
 }
 
 type SourceDecisionKind string
@@ -78,7 +96,22 @@ func NormalizeSource(input SourceInput) (SourceMetadata, error) {
 	contentHash := hex.EncodeToString(hash[:])
 	sourceID := "source-" + contentHash[:24]
 	sections := parseSections(sourceID, content)
-	return SourceMetadata{SourceID: sourceID, Path: path, ContentHash: contentHash, Content: []byte(content), Sections: sections}, nil
+	return SourceMetadata{SourceID: sourceID, Path: path, ContentHash: contentHash, Content: []byte(content), Sections: sections, Format: "md", ParserVersion: "danny-native", ProviderMode: "local", UntrustedSource: true}, nil
+}
+
+func NormalizeParsedSource(path string, result parser.Result) (SourceMetadata, error) {
+	metadata, err := NormalizeSource(SourceInput{Path: path, Content: result.CanonicalMarkdown, Format: result.DetectedFormat, ParserVersion: result.ParserVersion, ProviderMode: string(result.ProviderMode), SourceFingerprint: result.SourceFingerprint, Warnings: result.Warnings, UntrustedSource: result.UntrustedSource})
+	if err != nil {
+		return SourceMetadata{}, err
+	}
+	metadata.ContentHash = result.ContentHash
+	metadata.SourceFingerprint = result.SourceFingerprint
+	metadata.Format = result.DetectedFormat
+	metadata.ParserVersion = result.ParserVersion
+	metadata.ProviderMode = string(result.ProviderMode)
+	metadata.Warnings = append([]parser.Warning(nil), result.Warnings...)
+	metadata.UntrustedSource = true
+	return metadata, nil
 }
 
 func parseSections(sourceID, content string) []Section {

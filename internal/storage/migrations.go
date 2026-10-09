@@ -2,7 +2,9 @@ package storage
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -12,7 +14,7 @@ var migrationStatements = []string{
 	`CREATE TABLE IF NOT EXISTS schedules (id TEXT PRIMARY KEY, cron TEXT NOT NULL, timezone TEXT NOT NULL, action_type TEXT NOT NULL, instruction TEXT NOT NULL DEFAULT '', enabled INTEGER NOT NULL DEFAULT 1, revision BIGINT NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
 	`CREATE TABLE IF NOT EXISTS executions (id TEXT PRIMARY KEY, task_id TEXT, schedule_id TEXT, occurrence_key TEXT, status TEXT NOT NULL, result BYTEA NOT NULL DEFAULT '', revision BIGINT NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
 	`CREATE TABLE IF NOT EXISTS notifications (id TEXT PRIMARY KEY, execution_id TEXT, channel TEXT NOT NULL, status TEXT NOT NULL, payload BYTEA NOT NULL DEFAULT '', revision BIGINT NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
-	`CREATE TABLE IF NOT EXISTS source_metadata (id TEXT PRIMARY KEY, path TEXT NOT NULL, content_hash TEXT NOT NULL, content BYTEA NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(path, content_hash))`,
+	`CREATE TABLE IF NOT EXISTS source_metadata (id TEXT PRIMARY KEY, path TEXT NOT NULL, content_hash TEXT NOT NULL, content BYTEA NOT NULL, format TEXT NOT NULL DEFAULT 'md', parser_version TEXT NOT NULL DEFAULT 'danny-native', provider_mode TEXT NOT NULL DEFAULT 'local', source_fingerprint TEXT NOT NULL DEFAULT '', warnings BYTEA NOT NULL DEFAULT '', untrusted_source INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(path, content_hash))`,
 	`CREATE TABLE IF NOT EXISTS knowledge_generations (id BIGINT PRIMARY KEY, status TEXT NOT NULL, commit_marker TEXT, created_at TEXT NOT NULL, committed_at TEXT)`,
 	`CREATE TABLE IF NOT EXISTS artifacts (id TEXT PRIMARY KEY, generation_id BIGINT NOT NULL, kind TEXT NOT NULL, content_hash TEXT NOT NULL, content BYTEA NOT NULL, lineage BYTEA NOT NULL DEFAULT '', created_at TEXT NOT NULL, UNIQUE(generation_id, kind, content_hash))`,
 	`CREATE TABLE IF NOT EXISTS manifests (generation_id BIGINT PRIMARY KEY, payload BYTEA NOT NULL, created_at TEXT NOT NULL)`,
@@ -35,6 +37,8 @@ var migrationStatements = []string{
 	`CREATE TABLE IF NOT EXISTS schedule_dispatch_attempts (id TEXT PRIMARY KEY, occurrence_id TEXT NOT NULL, outbox_id TEXT NOT NULL, status TEXT NOT NULL, attempt INTEGER NOT NULL DEFAULT 0, owner TEXT NOT NULL DEFAULT '', fencing BIGINT NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
 	`CREATE TABLE IF NOT EXISTS webhook_deliveries (id TEXT PRIMARY KEY, execution_id TEXT NOT NULL DEFAULT '', occurrence_id TEXT NOT NULL DEFAULT '', effect_key TEXT NOT NULL, url TEXT NOT NULL, payload BYTEA NOT NULL DEFAULT '', status TEXT NOT NULL, revision BIGINT NOT NULL DEFAULT 1, attempt_count BIGINT NOT NULL DEFAULT 0, next_attempt_at TEXT NOT NULL, owner TEXT NOT NULL DEFAULT '', lease_until TEXT, last_error TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(effect_key))`,
 	`CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_claim ON webhook_deliveries(status, next_attempt_at, lease_until)`,
+	`CREATE TABLE IF NOT EXISTS parser_jobs (id TEXT PRIMARY KEY, contract_version TEXT NOT NULL, idempotency_key TEXT NOT NULL, staging_object_id TEXT NOT NULL, source_fingerprint TEXT NOT NULL, content_hash TEXT NOT NULL, filename TEXT NOT NULL, format_hint TEXT NOT NULL DEFAULT '', policy BYTEA NOT NULL DEFAULT '', status TEXT NOT NULL, attempt_count INTEGER NOT NULL DEFAULT 0, result BYTEA NOT NULL DEFAULT '', failure BYTEA NOT NULL DEFAULT '', parser_version TEXT NOT NULL DEFAULT '', provider_mode TEXT NOT NULL DEFAULT '', cleanup_state TEXT NOT NULL DEFAULT 'pending', owner TEXT NOT NULL DEFAULT '', lease_until TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(idempotency_key))`,
+	`CREATE INDEX IF NOT EXISTS idx_parser_jobs_claim ON parser_jobs(status, lease_until, created_at)`,
 }
 
 func (s *Store) Migrate(ctx context.Context) error {
@@ -59,12 +63,77 @@ func (s *Store) Migrate(ctx context.Context) error {
 				return fmt.Errorf("apply schema migration %d: %w", CurrentSchemaVersion, err)
 			}
 		}
+		if err := ensureSourceMetadataColumns(ctx, tx, s.driver); err != nil {
+			return fmt.Errorf("ensure source metadata columns: %w", err)
+		}
 		if _, err := tx.ExecContext(ctx, s.bind(`INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)`), CurrentSchemaVersion, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
 			return fmt.Errorf("record schema migration: %w", err)
 		}
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit migration: %w", err)
+	}
+	return nil
+}
+
+func ensureSourceMetadataColumns(ctx context.Context, tx *sql.Tx, driver string) error {
+	columns := map[string]bool{}
+	if driver == "postgres" {
+		rows, err := tx.QueryContext(ctx, `SELECT column_name FROM information_schema.columns WHERE table_name='source_metadata'`)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = rows.Close() }()
+		for rows.Next() {
+			var name string
+			if err := rows.Scan(&name); err != nil {
+				return err
+			}
+			columns[name] = true
+		}
+		if err := rows.Err(); err != nil {
+			return err
+		}
+	} else {
+		rows, err := tx.QueryContext(ctx, `PRAGMA table_info(source_metadata)`)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = rows.Close() }()
+		for rows.Next() {
+			var cid, notNull, primaryKey int
+			var name, dataType string
+			var defaultValue sql.NullString
+			if err := rows.Scan(&cid, &name, &dataType, &notNull, &defaultValue, &primaryKey); err != nil {
+				return err
+			}
+			columns[name] = true
+		}
+		if err := rows.Err(); err != nil {
+			return err
+		}
+	}
+	additions := []struct {
+		name, statement string
+	}{
+		{"format", `ALTER TABLE source_metadata ADD COLUMN format TEXT NOT NULL DEFAULT 'md'`},
+		{"parser_version", `ALTER TABLE source_metadata ADD COLUMN parser_version TEXT NOT NULL DEFAULT 'danny-native'`},
+		{"provider_mode", `ALTER TABLE source_metadata ADD COLUMN provider_mode TEXT NOT NULL DEFAULT 'local'`},
+		{"source_fingerprint", `ALTER TABLE source_metadata ADD COLUMN source_fingerprint TEXT NOT NULL DEFAULT ''`},
+		{"warnings", `ALTER TABLE source_metadata ADD COLUMN warnings BYTEA NOT NULL DEFAULT ''`},
+		{"untrusted_source", `ALTER TABLE source_metadata ADD COLUMN untrusted_source INTEGER NOT NULL DEFAULT 1`},
+	}
+	for _, addition := range additions {
+		if columns[addition.name] {
+			continue
+		}
+		statement := addition.statement
+		if driver == "postgres" {
+			statement = strings.Replace(statement, "ADD COLUMN ", "ADD COLUMN IF NOT EXISTS ", 1)
+		}
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return err
+		}
 	}
 	return nil
 }

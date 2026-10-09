@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "danny-parser"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+  "markitdown[docx,pptx,xlsx,xls]==0.1.5",
+  "trafilatura==2.0.0",
+  "pymupdf==1.27.2.3",
+  "pageindex==0.3.0.dev3",
+]
+
+[project.scripts]
+danny-parser = "parser_service.cli:main"
+danny-parser-http = "parser_service.http_server:main"

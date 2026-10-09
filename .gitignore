@@ -34,3 +34,10 @@ go.work.sum
 
 # Local implementation worktrees
 .worktrees/
+
+# Local build, analysis, parser test, and debug artifacts
+.go-cache/
+.tmp/
+debug.log
+parser_service/__pycache__/
+parser_service/.test-work/

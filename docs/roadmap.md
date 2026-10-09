@@ -31,9 +31,10 @@ flowchart TD
     P4[Milestone 4\nCompiled knowledge workflow]
     P5[Milestone 5\nTasks and dynamic execution planner]
     P6[Milestone 6\nScheduler mailbox and delivery]
-    P7[Milestone 7\nHTTP API and Web workbench]
-    P8[Milestone 8\nDocker profiles and operations]
-    P9[Milestone 9\nEnd-to-end validation and release gate]
+    P7[Milestone 7\nDocument ingestion and parser boundary]
+    P8[Milestone 8\nHTTP API and Web workbench]
+    P9[Milestone 9\nDocker profiles and operations]
+    P10[Milestone 10\nEnd-to-end validation and release gate]
 
     P0 --> P1
     P0 --> P2
@@ -44,16 +45,18 @@ flowchart TD
     P2 --> P5
     P5 --> P6
     P4 --> P7
-    P5 --> P7
-    P6 --> P7
-    P2 --> P8
-    P6 --> P8
     P7 --> P8
-    P4 --> P9
-    P5 --> P9
+    P5 --> P8
+    P6 --> P8
+    P2 --> P9
     P6 --> P9
-    P7 --> P9
     P8 --> P9
+    P4 --> P10
+    P5 --> P10
+    P6 --> P10
+    P7 --> P10
+    P8 --> P10
+    P9 --> P10
 ```
 
 Milestones 1 and 2 can proceed in parallel after Milestone 0. The runtime probe must complete before any feature claims Baymax/Stele integration. The storage foundation must complete before tasks, schedules, or compilation durability is implemented.
@@ -275,7 +278,42 @@ Milestones 1 and 2 can proceed in parallel after Milestone 0. The runtime probe 
 
 **Next implementation plan:** schedule repositories, occurrence calculator, outbox worker, mailbox worker, effect-key enforcement, and delivery worker.
 
-## Milestone 7 — HTTP API and Web workbench
+## Milestone 7 — Document ingestion and parser boundary
+
+**Purpose:** define and validate the OpenKB-inspired document ingestion boundary before exposing file upload through the HTTP workbench. The parser runs as an isolated service so Go business modules do not depend on Python document libraries or implicit system CLI behavior.
+
+**OpenKB-derived support contract:**
+
+- Markdown and plain text are required local formats.
+- HTML and CSV are required local formats.
+- DOCX, PPTX, XLSX, and XLS are supported through the parser image's pinned `markitdown` extras.
+- PDF is supported through PyMuPDF; long PDF routing uses a configurable page threshold.
+- PageIndex Cloud OCR/import is optional and must be observable as a provider mode with explicit fallback or failure status.
+- Unknown extensions, missing parser extras, resource-limit violations, and malformed documents return structured `unsupported` or `failed` states.
+
+**Deliverables:**
+
+- Versioned parser service HTTP contract for staging-object submission, status, result retrieval, cancellation, health, and capability discovery.
+- Production Go-to-Python transport uses versioned HTTP/JSON over the internal network; a CLI adapter over the same parser core is required for local development, deterministic fixtures, and diagnostics.
+- Canonical parsed document model containing source fingerprint, content hash, detected format, parser/provider version, Markdown, page/section metadata, image references, warnings, and failure details.
+- Resource policy for file size, page count, CPU, memory, concurrency, timeout, temporary storage, and cleanup.
+- Untrusted-source marker carried into KnowledgeAgent context and tool policy.
+- SQLite/PostgreSQL source metadata and generation input records for parser jobs.
+- Parser Docker image, Compose profile, health/readiness checks, and loopback-only default exposure.
+- Deterministic fixtures for every supported format, malformed input, parser crash/restart, duplicate content, and optional PageIndex Cloud fallback.
+
+**Exit gate:**
+
+- Every required format reaches canonical Markdown or a persisted structured failure.
+- Repeating a request with the same source fingerprint is idempotent and returns the same parsed artifact.
+- Parser restart does not lose accepted jobs or leave an untracked temporary file.
+- Go compilation consumes only the versioned parser contract and never imports parser implementation packages.
+- Source text is marked untrusted before Baymax context assembly and cannot expand write capabilities.
+- Local mode works without PageIndex credentials; cloud mode is opt-in and records provider/fallback evidence.
+
+**Next implementation plan:** parser contract, Python adapter, resource limits, job persistence, Docker profile, and format/failure fixtures.
+
+## Milestone 8 — HTTP API and Web workbench
 
 **Purpose:** expose the verified domain capabilities through a local browser workbench.
 
@@ -299,7 +337,7 @@ Milestones 1 and 2 can proceed in parallel after Milestone 0. The runtime probe 
 
 **Next implementation plan:** API contracts, SSE/event mapping, browser state model, and workbench views.
 
-## Milestone 8 — Docker profiles and operations
+## Milestone 9 — Docker profiles and operations
 
 **Purpose:** make the validated local system reproducible in Docker with SQLite and PostgreSQL modes.
 
@@ -324,7 +362,7 @@ Milestones 1 and 2 can proceed in parallel after Milestone 0. The runtime probe 
 
 **Next implementation plan:** container build, Compose profiles, health checks, migration startup, and recovery smoke tests.
 
-## Milestone 9 — End-to-end validation and release gate
+## Milestone 10 — End-to-end validation and release gate
 
 **Purpose:** prove the project validates Baymax and Stele in real user workflows and is ready for the next development cycle.
 
@@ -341,7 +379,8 @@ Milestones 1 and 2 can proceed in parallel after Milestone 0. The runtime probe 
 9. Crash at every documented outbox, lease, materialization, and webhook boundary and verify recovery.
 10. Run the full suite in SQLite and PostgreSQL modes.
 11. Run deterministic fake-model contract tests and an OpenAI-compatible live smoke test.
-12. Verify all active Baymax/Stele findings have regression fixtures and that blocked tasks remain blocked until the upstream repair is verified.
+12. Import representative PDF, DOCX, PPTX, XLSX, XLS, HTML, CSV, TXT, and Markdown files through the parser service and verify canonical output or structured failure.
+13. Verify all active Baymax/Stele findings have regression fixtures and that blocked tasks remain blocked until the upstream repair is verified.
 
 **Release gate:**
 

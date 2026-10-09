@@ -1,0 +1,31 @@
+services:
+  parser:
+    build:
+      context: .
+      dockerfile: parser_service/Dockerfile
+      args:
+        PYTHON_BASE_IMAGE: ${DANNY_PARSER_BASE_IMAGE:-docker.1ms.run/library/python:3.13-slim}
+    profiles: [parser]
+    environment:
+      PAGEINDEX_API_KEY: ${PAGEINDEX_API_KEY:-}
+    volumes:
+      - danny_parser_staging:/var/lib/danny/staging
+      - danny_parser_jobs:/var/lib/danny/parser-jobs
+    expose:
+      - "8090"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/v1/health/ready', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+    tmpfs:
+      - /tmp:size=512m,noexec,nosuid
+
+volumes:
+  danny_parser_staging:
+  danny_parser_jobs:

@@ -3,8 +3,13 @@ package knowledge
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+
+	"github.com/FelixSeptem/danny/internal/parser"
 )
+
+var ErrParserResultFailed = errors.New("knowledge: parser result is not successful")
 
 type CompileRequest struct {
 	PlanID           string
@@ -20,6 +25,11 @@ type Compiler struct{}
 func NewCompiler() Compiler { return Compiler{} }
 
 func (Compiler) Plan(_ context.Context, request CompileRequest) (CompilationPlan, error) {
+	for _, input := range request.Inputs {
+		if input.ParserStatus != "" && input.ParserStatus != string(parser.StatusSucceeded) {
+			return CompilationPlan{}, fmt.Errorf("%w: %s", ErrParserResultFailed, input.ParserFailure)
+		}
+	}
 	decisions, err := PlanScan(request.Previous, request.Inputs, true)
 	if err != nil {
 		return CompilationPlan{}, err

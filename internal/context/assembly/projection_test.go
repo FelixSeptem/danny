@@ -29,6 +29,16 @@ func TestProjectionRejectsMissingCapabilityDigest(t *testing.T) {
 	}
 }
 
+func TestProjectionMarksSourceReferencesAsUntrusted(t *testing.T) {
+	p, err := NewBuilder(ProjectionLimits{MaxBytes: 4096}).Build(ProjectionRequest{Role: RoleSectionAnalyst, Prefix: "prefix", CapabilityDigest: "cap", References: []Reference{{ID: "source-1", Kind: "source", Locator: "note.md"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.References) != 1 || !p.References[0].Untrusted || !p.Handoff.References[0].Untrusted {
+		t.Fatalf("untrusted references = %#v", p.References)
+	}
+}
+
 func TestRoleProjectionDoesNotExposeUnauthorizedFields(t *testing.T) {
 	p, err := NewBuilder(ProjectionLimits{MaxBytes: 512}).Build(ProjectionRequest{Role: RoleCitationValidator, Prefix: "prefix", CapabilityDigest: "cap", Task: "validate", PrivateMemory: "secret memory", References: []Reference{{ID: "r", Kind: "source", Locator: "doc#1"}}})
 	if err != nil {

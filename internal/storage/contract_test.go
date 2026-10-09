@@ -3,10 +3,12 @@ package storage
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/FelixSeptem/danny/internal/parser"
 	"github.com/google/uuid"
 )
 
@@ -75,7 +77,15 @@ func TestPostgresRepositoryContract(t *testing.T) {
 	if admitted.Status != ExecutionAdmitted {
 		t.Fatalf("execution status = %s", admitted.Status)
 	}
-	if _, err := store.Executions().UpdateExecution(ctx, admitted.ID, admitted.Revision, ExecutionSucceeded, []byte("ok"), nil); err != nil {
+	dispatching, err := store.Executions().UpdateExecution(ctx, admitted.ID, admitted.Revision, ExecutionDispatching, nil, nil)
+	if err != nil {
+		t.Fatalf("execution dispatch transition: %v", err)
+	}
+	running, err := store.Executions().UpdateExecution(ctx, dispatching.ID, dispatching.Revision, ExecutionRunning, nil, nil)
+	if err != nil {
+		t.Fatalf("execution running transition: %v", err)
+	}
+	if _, err := store.Executions().UpdateExecution(ctx, running.ID, running.Revision, ExecutionSucceeded, []byte("ok"), nil); err != nil {
 		t.Fatalf("execution terminal update: %v", err)
 	}
 	lease, err := store.Leases().Acquire(ctx, "contract", task.ID, "worker-1", time.Minute)
@@ -84,6 +94,108 @@ func TestPostgresRepositoryContract(t *testing.T) {
 	}
 	if err := store.Leases().Release(ctx, "contract", task.ID, "stale-worker", lease.Fencing); err != ErrLeaseLost {
 		t.Fatalf("stale Release error = %v, want ErrLeaseLost", err)
+	}
+	parserJob, err := store.ParserJobs().Create(ctx, ParserJob{ID: "parser-" + uuid.NewString(), IdempotencyKey: "parser-key-" + uuid.NewString(), StagingObjectID: "object-1", SourceFingerprint: "source-1", ContentHash: "hash-1", Filename: "note.md"})
+	if err != nil {
+		t.Fatalf("parser job create: %v", err)
+	}
+	claimedParser, err := store.ParserJobs().Claim(ctx, "parser-worker", time.Minute)
+	if err != nil || claimedParser.ID != parserJob.ID || claimedParser.Status != string(parser.StatusRunning) {
+		t.Fatalf("parser job claim = %#v, err=%v", claimedParser, err)
+	}
+	if _, err := store.ParserJobs().SaveResult(ctx, parserJob.ID, "parser-worker", []byte(`{"ok":true}`), nil, string(parser.StatusSucceeded), "local"); err != nil {
+		t.Fatalf("parser job result: %v", err)
+	}
+	cancelJob, err := store.ParserJobs().Create(ctx, ParserJob{ID: "parser-cancel-" + uuid.NewString(), IdempotencyKey: "parser-cancel-key-" + uuid.NewString(), StagingObjectID: "object-cancel", SourceFingerprint: "source-cancel", ContentHash: "hash-cancel", Filename: "cancel.md"})
+	if err != nil {
+		t.Fatalf("parser cancellation job create: %v", err)
+	}
+	claimedCancel, err := store.ParserJobs().Claim(ctx, "parser-cancel-worker", time.Minute)
+	if err != nil || claimedCancel.ID != cancelJob.ID {
+		t.Fatalf("parser cancellation claim = %#v, err=%v", claimedCancel, err)
+	}
+	if err := store.ParserJobs().RequestCancel(ctx, cancelJob.ID); err != nil {
+		t.Fatalf("parser cancellation request: %v", err)
+	}
+	if _, err := store.ParserJobs().SaveResult(ctx, cancelJob.ID, "parser-cancel-worker", []byte(`{"stale":true}`), nil, string(parser.StatusSucceeded), "local"); err != ErrLeaseLost {
+		t.Fatalf("cancelled parser result error = %v, want ErrLeaseLost", err)
+	}
+	recoveryJob, err := store.ParserJobs().Create(ctx, ParserJob{ID: "parser-recovery-" + uuid.NewString(), IdempotencyKey: "parser-recovery-key-" + uuid.NewString(), StagingObjectID: "object-recovery", SourceFingerprint: "source-recovery", ContentHash: "hash-recovery", Filename: "recovery.md"})
+	if err != nil {
+		t.Fatalf("parser recovery job create: %v", err)
+	}
+	firstRecovery, err := store.ParserJobs().Claim(ctx, "parser-recovery-worker-1", -time.Millisecond)
+	if err != nil || firstRecovery.ID != recoveryJob.ID {
+		t.Fatalf("first parser recovery claim = %#v, err=%v", firstRecovery, err)
+	}
+	secondRecovery, err := store.ParserJobs().Claim(ctx, "parser-recovery-worker-2", time.Minute)
+	if err != nil || secondRecovery.ID != recoveryJob.ID || secondRecovery.AttemptCount != firstRecovery.AttemptCount+1 {
+		t.Fatalf("second parser recovery claim = %#v, err=%v", secondRecovery, err)
+	}
+	if _, err := store.ParserJobs().SaveResult(ctx, recoveryJob.ID, "parser-recovery-worker-1", []byte(`{"stale":true}`), nil, string(parser.StatusSucceeded), "local"); err != ErrLeaseLost {
+		t.Fatalf("stale parser recovery result error = %v, want ErrLeaseLost", err)
+	}
+	if _, err := store.ParserJobs().SaveResult(ctx, recoveryJob.ID, "parser-recovery-worker-2", []byte(`{"ok":true}`), nil, string(parser.StatusSucceeded), "local"); err != nil {
+		t.Fatalf("parser recovery result: %v", err)
+	}
+	sourceID := "parser-source-" + uuid.NewString()
+	transactionJobID := "parser-transaction-" + uuid.NewString()
+	if err := store.WithTransaction(ctx, func(tx *Transaction) error {
+		return tx.CreateParserJobWithSource(ctx, ParserJob{ID: transactionJobID, ContractVersion: parser.ContractVersion, IdempotencyKey: "parser-transaction-key-" + uuid.NewString(), StagingObjectID: "object-transaction", SourceFingerprint: "source-transaction", ContentHash: "hash-transaction", Filename: "transaction.md"}, ParserSourceRecord{ID: sourceID, Path: "transaction.md", ContentHash: "hash-transaction", Content: []byte("# Transaction\n"), Format: "md", ParserVersion: "native", ProviderMode: "local"})
+	}); err != nil {
+		t.Fatalf("parser source transaction commit: %v", err)
+	}
+	if _, err := store.ParserJobs().Get(ctx, transactionJobID); err != nil {
+		t.Fatalf("parser job after transaction commit: %v", err)
+	}
+	var sourceCount int
+	if err := store.DB().QueryRowContext(ctx, store.bind(`SELECT COUNT(*) FROM source_metadata WHERE id=?`), sourceID).Scan(&sourceCount); err != nil || sourceCount != 1 {
+		t.Fatalf("parser source after transaction commit count=%d err=%v", sourceCount, err)
+	}
+	store.SetFailureInjector(func(point string) error {
+		if point == "state_outbox_commit" {
+			return os.ErrClosed
+		}
+		return nil
+	})
+	rolledBackJobID := "parser-rollback-" + uuid.NewString()
+	rolledBackSourceID := "parser-rollback-source-" + uuid.NewString()
+	err = store.WithTransaction(ctx, func(tx *Transaction) error {
+		return tx.CreateParserJobWithSource(ctx, ParserJob{ID: rolledBackJobID, ContractVersion: parser.ContractVersion, IdempotencyKey: "parser-rollback-key-" + uuid.NewString(), StagingObjectID: "object-rollback", SourceFingerprint: "source-rollback", ContentHash: "hash-rollback", Filename: "rollback.md"}, ParserSourceRecord{ID: rolledBackSourceID, Path: "rollback.md", ContentHash: "hash-rollback", Content: []byte("# Rollback\n"), Format: "md", ParserVersion: "native", ProviderMode: "local"})
+	})
+	store.SetFailureInjector(nil)
+	if err == nil {
+		t.Fatal("parser crash-boundary transaction unexpectedly committed")
+	}
+	if _, err := store.ParserJobs().Get(ctx, rolledBackJobID); err != ErrNotFound {
+		t.Fatalf("parser job after crash-boundary rollback error = %v, want ErrNotFound", err)
+	}
+	if err := store.DB().QueryRowContext(ctx, store.bind(`SELECT COUNT(*) FROM source_metadata WHERE id=?`), rolledBackSourceID).Scan(&sourceCount); err != nil || sourceCount != 0 {
+		t.Fatalf("parser source after crash-boundary rollback count=%d err=%v", sourceCount, err)
+	}
+	generation, err := store.Generations().Begin(ctx)
+	if err != nil {
+		t.Fatalf("materialization generation begin: %v", err)
+	}
+	if err := store.Generations().AddArtifact(ctx, generation.ID, Artifact{ID: "parser-materialized-artifact", Kind: "summary", ContentHash: "parser-materialized-hash", Content: []byte("parser materialized content")}); err != nil {
+		t.Fatalf("materialization artifact add: %v", err)
+	}
+	if err := store.Generations().Commit(ctx, generation.ID, []byte(`{"artifacts":["parser-materialized-artifact"]}`)); err != nil {
+		t.Fatalf("materialization generation commit: %v", err)
+	}
+	materializationDir := t.TempDir()
+	if err := store.Generations().Materialize(ctx, generation.ID, materializationDir); err != nil {
+		t.Fatalf("materialization: %v", err)
+	}
+	materializedPath := filepath.Join(materializationDir, "summary", "parser-materialized-artifact")
+	if err := os.Remove(materializedPath); err != nil {
+		t.Fatalf("remove materialized artifact: %v", err)
+	}
+	if err := store.Reconcile(ctx, materializationDir); err != nil {
+		t.Fatalf("materialization recovery reconcile: %v", err)
+	}
+	if content, err := os.ReadFile(materializedPath); err != nil || string(content) != "parser materialized content" {
+		t.Fatalf("recovered materialized artifact content=%q err=%v", content, err)
 	}
 }
 

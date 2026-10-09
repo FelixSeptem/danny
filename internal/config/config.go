@@ -26,6 +26,10 @@ type Config struct {
 	SchedulerEnabled  bool
 	SchedulerTimezone string
 	DockerProfile     string
+	ParserURL         string
+	ParserCommand     string
+	ParserStagingDir  string
+	ParserJobsDir     string
 }
 
 // LoadFromEnv parses DANNY_* variables and applies documented local defaults.
@@ -75,6 +79,10 @@ func LoadFromEnv(lookup func(string) (string, bool)) (Config, error) {
 		SchedulerEnabled:  schedulerEnabled,
 		SchedulerTimezone: get("DANNY_SCHEDULER_TIMEZONE", "UTC"),
 		DockerProfile:     get("DANNY_DOCKER_PROFILE", "local"),
+		ParserURL:         get("DANNY_PARSER_URL", "http://parser:8090"),
+		ParserCommand:     get("DANNY_PARSER_COMMAND", "danny-parser"),
+		ParserStagingDir:  get("DANNY_PARSER_STAGING_DIR", "data/staging"),
+		ParserJobsDir:     get("DANNY_PARSER_JOBS_DIR", "data/parser-jobs"),
 	}, nil
 }
 

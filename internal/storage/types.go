@@ -9,6 +9,54 @@ import (
 	"time"
 )
 
+// ParserJob is the durable application record for one parser request.
+// The source bytes remain in the controlled staging root; this record stores
+// the opaque object identity and the canonical parser result metadata.
+type ParserJob struct {
+	ID                string
+	ContractVersion   string
+	IdempotencyKey    string
+	StagingObjectID   string
+	SourceFingerprint string
+	ContentHash       string
+	Filename          string
+	FormatHint        string
+	Policy            []byte
+	Status            string
+	AttemptCount      int
+	Result            []byte
+	Failure           []byte
+	ParserVersion     string
+	ProviderMode      string
+	CleanupState      string
+	Owner             string
+	LeaseUntil        *time.Time
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
+type ParserJobRepository interface {
+	Create(context.Context, ParserJob) (ParserJob, error)
+	Get(context.Context, string) (ParserJob, error)
+	GetByIdempotencyKey(context.Context, string) (ParserJob, error)
+	Claim(context.Context, string, time.Duration) (ParserJob, error)
+	SaveResult(context.Context, string, string, []byte, []byte, string, string) (ParserJob, error)
+	RequestCancel(context.Context, string) error
+}
+
+type ParserSourceRecord struct {
+	ID                string
+	Path              string
+	ContentHash       string
+	Content           []byte
+	Format            string
+	ParserVersion     string
+	ProviderMode      string
+	SourceFingerprint string
+	Warnings          []byte
+	UntrustedSource   bool
+}
+
 var (
 	ErrRevisionConflict   = errors.New("storage: revision conflict")
 	ErrLeaseLost          = errors.New("storage: lease lost")
@@ -20,7 +68,7 @@ var (
 	ErrDeliveryConflict   = errors.New("storage: delivery conflict")
 )
 
-const CurrentSchemaVersion = 3
+const CurrentSchemaVersion = 4
 
 type Store struct {
 	db              *sql.DB
@@ -424,6 +472,7 @@ func (s *Store) Leases() LeaseRepository           { return &leaseRepository{sto
 func (s *Store) Executions() ExecutionRepository   { return &executionRepository{store: s} }
 func (s *Store) Schedules() ScheduleRepository     { return &scheduleRepository{store: s} }
 func (s *Store) Webhooks() WebhookRepository       { return &webhookRepository{store: s} }
+func (s *Store) ParserJobs() ParserJobRepository   { return &parserJobRepository{store: s} }
 func (s *Store) TerminalDeliveries() TerminalDeliveryRepository {
 	return &webhookRepository{store: s}
 }
