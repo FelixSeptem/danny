@@ -136,6 +136,8 @@ type Client struct {
 	activeEngines       map[string]*runner.Engine
 	nativeHistories     map[string]bmtypes.NativeEventHistoryReader
 	continuation        *continuationRuntime
+	owner               *ownerStoreRuntime
+	continuationOwners  *continuationOwners
 }
 
 func New(model bmtypes.ModelClient, opts ...runner.Option) (*Client, error) {
@@ -311,6 +313,9 @@ func (c *Client) Reconcile(ctx context.Context, req runtimeboundary.RecoveryRequ
 	if err := req.Validate(); err != nil {
 		return runtimeboundary.RecoveryOutcome{}, ErrAuthorizedRequest
 	}
+	if c.owner != nil {
+		return c.reconcileOwnerStore(ctx, req)
+	}
 	source := bmtypes.SourceRef{Kind: bmtypes.HistorySourceRunner, Namespace: req.SourceNamespace, ID: req.NativeRunID}
 	c.activeMu.Lock()
 	history := c.nativeHistories[req.NativeRunID]
@@ -368,7 +373,7 @@ func (c *Client) RetryAuthorized(ctx context.Context, previous bmtypes.RunRef, r
 		return ExecutionResult{}, ErrAuthorizedRequest
 	}
 	source := bmtypes.SourceRef{Kind: bmtypes.HistorySourceRunner, Namespace: "danny.baymax.runner.history.v1", ID: req.RunID}
-	history, err := runner.NewNativeEventHistory(source)
+	history, err := c.newSourceHistory(req.RunID, source)
 	if err != nil {
 		return ExecutionResult{}, err
 	}
@@ -445,7 +450,7 @@ func (c *Client) RunChildAuthorized(ctx context.Context, req AuthorizedRequest) 
 	if c == nil || req.RunID == "" || req.ParentRunID == "" || req.CorrelationID == "" || req.PlanVersion == "" || req.CapabilityDigest == "" {
 		return ExecutionResult{}, ErrAuthorizedRequest
 	}
-	comp, err := composer.NewBuilder(c.model).WithLocalRegistry(c.registry).Build()
+	comp, err := c.childComposer(req.RunID)
 	if err != nil {
 		return ExecutionResult{}, err
 	}
@@ -530,10 +535,6 @@ func (c *Client) RunTeamAuthorized(ctx context.Context, req TeamRequest) (TeamEx
 		return TeamExecutionResult{}, ErrAuthorizedRequest
 	}
 	source := bmtypes.SourceRef{Kind: bmtypes.HistorySourceTeam, Namespace: "danny.baymax.team.history.v1", ID: req.TeamID}
-	history, err := teams.NewNativeEventHistory(source)
-	if err != nil {
-		return TeamExecutionResult{}, err
-	}
 	strategy := req.Strategy
 	if strategy == "" {
 		strategy = teams.StrategyParallel
@@ -573,7 +574,10 @@ func (c *Client) RunTeamAuthorized(ctx context.Context, req TeamRequest) (TeamEx
 			return teams.TaskResult{Output: memberResult}, nil
 		})})
 	}
-	engine := teams.New(teams.WithNativeEventHistory(history))
+	engine, history, err := c.teamEngine(req.TeamID, source)
+	if err != nil {
+		return TeamExecutionResult{}, err
+	}
 	failurePolicy := req.FailurePolicy
 	if failurePolicy == "" {
 		failurePolicy = teams.FailurePolicyFailFast
@@ -663,7 +667,7 @@ func (c *Client) executeAuthorized(ctx context.Context, req AuthorizedRequest, s
 		mode = bmtypes.HostRunExecutionModeStream
 	}
 	source := bmtypes.SourceRef{Kind: bmtypes.HistorySourceRunner, Namespace: "danny.baymax.runner.history.v1", ID: req.RunID}
-	history, err := runner.NewNativeEventHistory(source)
+	history, err := c.newSourceHistory(req.RunID, source)
 	if err != nil {
 		return ExecutionResult{}, err
 	}

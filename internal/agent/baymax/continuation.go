@@ -99,7 +99,7 @@ func (c *Client) ResumeAuthorized(ctx context.Context, req NativeResumeRequest) 
 	}
 	ref := nativeReferenceFromCheckpoint(req.Checkpoint)
 	source := bmtypes.SourceRef{Kind: bmtypes.HistorySourceRunner, Namespace: "danny.baymax.runner.history.v1", ID: ref.RunID}
-	history, err := runner.NewNativeEventHistory(source)
+	history, err := c.newSourceHistory(ref.RunID, source)
 	if err != nil {
 		return ExecutionResult{}, err
 	}

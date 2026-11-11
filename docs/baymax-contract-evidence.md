@@ -30,27 +30,29 @@ production-ready.
 ## Not Yet Verified
 
 - Native history is explicit per source owner. Authorized runner, child member,
-  and parallel-team paths now bind source-owned journals in-process; a callback
-  handler or local sequence is not native history evidence. Durable multi-process
-  source stores and product projection transactions remain separate gaps.
-- The new file journal is durable only for same-host single-writer sequential
+  and parallel-team paths bind source-owned journals; a callback handler or local
+  sequence is not native history evidence. With `BindOwnerStore` and
+  `BindContinuationOwners` the journals are file-backed, but the atomicity limit
+  below still applies.
+- The file journal is durable only for same-host single-writer sequential
   reopen. It does not provide multi-writer CAS, cross-machine coordination, or
-  multi-instance recovery.
+  multi-instance recovery; `core/history.OpenOwnerStore` rejects a wider
+  deployment request instead of degrading silently.
 - Mailbox history is source-specific lifecycle history; acknowledgement or DLQ
   terminal facts are not runner completion or a product commit.
-- The current pin publishes per-pause-reason continuation capability evidence
-  for child, team and mailbox handler owners (upstream 194/198 and the team
-  continuation contract), but Danny has not wired those owners. Public contract
-  presence is not a product restore claim: `internal/runtimeboundary/contracts.go`
-  keeps child/team pause restore unsupported and mailbox handler restore unclaimed.
-- Native source retention and replay after a process restart require a concrete
-  source store or a documented store extension point; the in-memory runner
-  fixture proves source identity/cursor projection only, not cross-process
-  durability.
-- Danny authorized Run/Stream projects the in-memory runner journal in the
-  current process. It is source-owned and satisfies the native activation
-  projection contract, but is not a durable recovery claim; persistence and
-  replay transaction wiring remain recovery tasks.
+- The pin publishes per-pause-reason continuation capability evidence for child,
+  team and mailbox handler owners (upstream 194/198 and the team continuation
+  contract), and Danny now wires all three. That is deterministic adapter
+  evidence, not a live acceptance result: `internal/runtimeboundary/contracts.go`
+  keeps child/team pause restore `unsupported` and mailbox handler restore
+  unclaimed until the Milestone 8 live smoke (task 7.3) runs the real
+  integration path.
+- Cross-process replay requires the caller to bind an owner root. Without one,
+  the adapter keeps its prior in-process behavior; nothing upgrades to durability
+  implicitly.
+- `Reconcile` only replays and deduplicates source facts. It never re-runs an
+  effect whose commit is unknown; a missing or retention-gapped source returns
+  recovery-required instead.
 
 ## Retention, Replay, and Continuation Matrix
 
@@ -63,10 +65,10 @@ coordination, or multi-instance recovery.
 | Form | Source identity and order | Retention, replay, and crash-before-projection | Checkpoint restore and pause coverage |
 | --- | --- | --- | --- |
 | Runner | `runner` source ref; source-local sequence and opaque cursor through `core/runner.WithNativeEventHistory` | Explicit owner journal only. Memory is process-local; file journal reopens sequentially, reports a retention floor, and rejects expired cursors. If append committed before Danny projection, the file owner can replay that fact; no atomic transaction joins the source append and Danny projection. | `Engine.ContinuationCapabilities` advertises restore only with a configured cross-process checkpoint store, dependency binding, approval and budget producers. The pinned `core/runner/native_continuation_process_test.go` exercises all three pauses (`input_required`, `approval_required`, `budget_exhausted`) in a new process. Deployment configuration remains required. |
-| Child / composer | `child` source ref; source-local sequence and opaque cursor through `composer.WithNativeEventHistory` | Explicit child owner journal; same bounded memory/file journal semantics. Reopen/replay is source-fact recovery only and is not atomic with Danny projection. | Upstream 194 now exposes `Composer.ContinuationCapabilities` with all three pause reasons supported when a file child continuation store, native history and executor are configured (`TestComposerRestoresChildContinuationWithFreshOwnersForEachPauseReason`). Danny has not wired this owner, so child pause restore remains unsupported for product admission. |
-| Team | `team` source ref; source-local sequence and opaque cursor through `teams.WithNativeEventHistory` | Explicit team journal; same bounded memory/file journal semantics. Source facts can be replayed after sequential reopen when file-backed; no source/projection atomicity. | The team continuation contract now exposes `Engine.ContinuationCapabilities` with bounded deployment evidence. Danny has not wired or revalidated it; team pause restore remains unsupported for product admission. |
+| Child / composer | `child` source ref; source-local sequence and opaque cursor through `composer.WithNativeEventHistory` | Explicit child owner journal; same bounded memory/file journal semantics. Reopen/replay is source-fact recovery only and is not atomic with Danny projection. `BindContinuationOwners` makes the adapter bind a file history, a file child continuation store and a file scheduler store, so the production composer no longer runs on an in-memory journal. | Upstream 194 exposes `Composer.ContinuationCapabilities` with all three pause reasons supported when a file child continuation store, native history and executor are configured (`TestComposerRestoresChildContinuationWithFreshOwnersForEachPauseReason`). Danny now wires that owner and reproduces each pause reason across a fresh client in `TestChildOwnerRestoresEachPauseReasonAfterFreshProcess`. Product availability is still gated by the Milestone 8 live smoke. |
+| Team | `team` source ref; source-local sequence and opaque cursor through `teams.WithNativeEventHistory` | Explicit team journal; same bounded memory/file journal semantics. Source facts can be replayed after sequential reopen when file-backed; no source/projection atomicity. The adapter binds a file team journal plus a file continuation store for every run once an owner is bound. | The team continuation contract exposes `Engine.ContinuationCapabilities` with bounded deployment evidence. Danny wires the owner plus an opt-in pause boundary and reproduces `input_required`, `approval_required` and `budget_exhausted` across a fresh client/engine in `TestTeamOwnerRestoresEachPauseReasonAfterFreshProcess`, including duplicate-resume convergence without rerunning members. Product availability is still gated by the live smoke. |
 | Workflow | `workflow` source ref; source-local sequence and opaque cursor through `workflow.WithNativeEventHistory` | Explicit workflow journal; same bounded memory/file journal semantics. Source facts can be replayed after sequential reopen when file-backed; no source/projection atomicity. | `Engine.ContinuationCapabilities` advertises file-store cross-process restore under the workflow owner namespace. Pinned workflow continuation tests cover `input_required`, `approval_required`, and `budget_exhausted`, including new-engine restore. This is workflow-specific and same-host/single-writer only. |
-| Mailbox | `mailbox.history.v1` source instance; lifecycle sequence and opaque cursor from `Mailbox.HistorySource`/`ReadAfter` | FileStore persists mailbox snapshot and reference-only lifecycle journal atomically. The pinned mailbox tests prove new-process replay, retention-floor/gap errors, and read-only replay. Replay covers mailbox transitions only, not native Agent events or application projection atomicity. | Upstream 198 adds `NewContinuationWorker` handler safe points for the three canonical pause reasons within a same-host single-writer deployment scope; lifecycle-only owners still fail closed. Danny has not wired the continuation worker, so product admission does not claim handler pause restore. `acked`, `dead_letter`, and `expired` remain mailbox lifecycle outcomes, not runner completion or product commit. |
+| Mailbox | `mailbox.history.v1` source instance; lifecycle sequence and opaque cursor from `Mailbox.HistorySource`/`ReadAfter` | FileStore persists mailbox snapshot and reference-only lifecycle journal atomically. The pinned mailbox tests prove new-process replay, retention-floor/gap errors, and read-only replay. Replay covers mailbox transitions only, not native Agent events or application projection atomicity. | Upstream 198 adds `NewContinuationWorker` handler safe points for the three canonical pause reasons within a same-host single-writer deployment scope; lifecycle-only owners still fail closed. Danny wires a file mailbox owner whose handler, resumer and revalidation callback are supplied by the caller, and reproduces each pause reason across a fresh process in `TestMailboxOwnerRestoresEachPauseReasonAfterFreshProcess` (resumer runs once, the fresh handler never reruns). Product availability is still gated by the live smoke. `acked`, `dead_letter`, and `expired` remain mailbox lifecycle outcomes, not runner completion or product commit. |
 
 Executable evidence:
 
@@ -89,6 +91,15 @@ Executable evidence:
   changes now advertise complete three-pause capability matrices for configured
   child, team and mailbox owners. Those are source contracts, not Danny product
   availability; see `docs/upstream/baymax-findings.md`.
+- `TestOwnerStoreReplaysTerminalAcrossFreshProcess`,
+  `TestOwnerStoreReconcilesProjectionIdempotentlyAfterCrashBeforeProjection`,
+  `TestOwnerStoreReportsGapWhenSourceFactsAreUnavailable` and
+  `TestOwnerStoreRetentionBoundsReplayAndRejectsExpiredCursor` exercise the
+  production adapter's owner-store binding and crash recovery paths.
+- `TestChildOwnerRestoresEachPauseReasonAfterFreshProcess`,
+  `TestTeamOwnerRestoresEachPauseReasonAfterFreshProcess` and
+  `TestMailboxOwnerRestoresEachPauseReasonAfterFreshProcess` cover the three
+  canonical pause reasons per execution form through the adapter-built owners.
 
 No form provides a transaction spanning source history append and Danny
 projection persistence. A source append that committed before projection can
@@ -128,3 +139,29 @@ real OpenAI-compatible endpoint was contacted. The existing
 `testdata/runtimeprobe/baymax-live-smoke-unavailable.evidence.json` records
 that state for the previous pin; the current pin has no live evidence at all.
 Task 7.3 therefore remains incomplete acceptance.
+
+## Integration Wiring (2026-11-12)
+
+Danny's adapter now consumes the 196/194/198 contracts instead of only
+inspecting them:
+
+- `Client.BindOwnerStore` opts into `history.OpenOwnerStore`. Execution uses the
+  source-owned file journal; `Reconcile` reopens the store in a fresh owner,
+  checks capabilities, replays after a bounded cursor, and reconciles the
+  projection ledger per event. Unknown or retention-gapped sources return
+  recovery-required instead of re-running effects.
+- `Client.BindContinuationOwners` wires durable child, team and mailbox owners.
+  Child and team get a file history, a file continuation store and (for child) a
+  file scheduler store; mailbox gets a file store plus caller-supplied handler,
+  resumer and revalidation callbacks.
+- `Client.ContinuationCapabilities` returns a detached per-form,
+  per-pause-reason matrix for those owners. It is read-only and does not create
+  checkpoints or resume effects.
+
+Both bindings are opt-in. A zero owner root keeps the previous in-process
+behavior, so no existing caller silently changes durability class.
+
+What this does **not** change: source append and Danny projection are still not
+one transaction. `OpenOwnerStore` reconciliation is replay-and-dedupe at the
+product boundary, which is the documented upstream non-goal, not a gap Danny can
+close by adding a runtime journal.
