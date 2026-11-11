@@ -10,6 +10,8 @@ github.com/FelixSeptem/baymax v0.0.0-20261022053159-3d0ab5949790 h1:ylr737VbjiYl
 github.com/FelixSeptem/baymax v0.0.0-20261022053159-3d0ab5949790/go.mod h1:7wmum8xI8RBkvGVil3A4/CObsO92IRQyssof2FKTPRk=
 github.com/FelixSeptem/baymax v0.0.0-20261103091945-d2e08cd6dc8c h1:IuBjiaEmR8sXO9Mej79p7AIrxlJnfIFtuRWJkhAcUjg=
 github.com/FelixSeptem/baymax v0.0.0-20261103091945-d2e08cd6dc8c/go.mod h1:50kDttG/Xy70XTXDKP8XpjHxVl63LeNcNCpbu1S80WY=
+github.com/FelixSeptem/baymax v0.0.0-20261110150429-cca95f31f71b h1:h8xnEK98V1V3WkzBL5I/SUZinTw3uaVrL7ke6yAztC8=
+github.com/FelixSeptem/baymax v0.0.0-20261110150429-cca95f31f71b/go.mod h1:50kDttG/Xy70XTXDKP8XpjHxVl63LeNcNCpbu1S80WY=
 github.com/FelixSeptem/stele v0.0.0-20261007033528-a556ac0ddacc h1:mS0SSOAGKIvlt5QnNfcx8ho8/164jbsSXjD2cm77cPI=
 github.com/FelixSeptem/stele v0.0.0-20261007033528-a556ac0ddacc/go.mod h1:AuGVm7ZfHvWndSYVrAI+89tPFXsN0wofMtGjtXM0Yaw=
 github.com/FelixSeptem/stele v0.0.0-20261019065620-7ffd30f9e635 h1:p132/n3V0Vo28xnfB3OWw6jpTTy7gp3+fJRFF/GIsNk=
@@ -18,6 +20,8 @@ github.com/FelixSeptem/stele v0.0.0-20261024024237-b63151c0464d h1:yHyWYy58LOHNh
 github.com/FelixSeptem/stele v0.0.0-20261024024237-b63151c0464d/go.mod h1:j+Je5XQw6wQwNbYL1V5q7f2Hr+pL4mXLuULTE9pU66o=
 github.com/FelixSeptem/stele v0.0.0-20261025080141-f38016ec0cba h1:sVUKyRr2bT/ppX22vs7H1TZExWGxy7DISnPXwXwQxjo=
 github.com/FelixSeptem/stele v0.0.0-20261025080141-f38016ec0cba/go.mod h1:j+Je5XQw6wQwNbYL1V5q7f2Hr+pL4mXLuULTE9pU66o=
+github.com/FelixSeptem/stele v0.0.0-20261111135338-19fc90134492 h1:cYjwjd+ltIiKw+wyLd4exg66t2eQ0Arxw8ErtoxTFPU=
+github.com/FelixSeptem/stele v0.0.0-20261111135338-19fc90134492/go.mod h1:Wfoo3OrXxMDXfK/vsmiIbmMTnsVZ5PfujDs39k/KjRE=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
@@ -128,8 +132,12 @@ github.com/subosito/gotenv v1.6.0/go.mod h1:Dk4QP5c2W3ibzajGcXpNraDfq2IrhjMIvMSW
 github.com/tidwall/gjson v1.14.2/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=
 github.com/tidwall/gjson v1.18.0 h1:FIDeeyB800efLX89e5a8Y0BNH+LOngJyGrIWxG2FKQY=
 github.com/tidwall/gjson v1.18.0/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=
+github.com/tidwall/gjson v1.19.0 h1:xwxm7n691Uf3u5OFjzngavjGTh55KX5q/9w9xHW88JU=
+github.com/tidwall/gjson v1.19.0/go.mod h1:V37/opeE/JbLUOfH0QTXiNez2l0RUjYUhpT4szFQAfc=
 github.com/tidwall/match v1.1.1 h1:+Ho715JplO36QYgwN9PGYNhgZvoUSc9X2c80KVTi+GA=
 github.com/tidwall/match v1.1.1/go.mod h1:eRSPERbgtNPcGhD8UCthc6PmLEQXEWd3PRB5JTxsfmM=
+github.com/tidwall/match v1.2.0 h1:0pt8FlkOwjN2fPt4bIl4BoNxb98gGHN2ObFEDkrfZnM=
+github.com/tidwall/match v1.2.0/go.mod h1:eRSPERbgtNPcGhD8UCthc6PmLEQXEWd3PRB5JTxsfmM=
 github.com/tidwall/pretty v1.2.0/go.mod h1:ITEVvHYasfjBbM0u2Pg8T2nJnzm8xPwvNhhsoaGGjNU=
 github.com/tidwall/pretty v1.2.1 h1:qjsOFOWWQl+N3RsoF5/ssm1pHmJJwhjlSbZ51I6wMl4=
 github.com/tidwall/pretty v1.2.1/go.mod h1:ITEVvHYasfjBbM0u2Pg8T2nJnzm8xPwvNhhsoaGGjNU=

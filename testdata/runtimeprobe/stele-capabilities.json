@@ -1,8 +1,8 @@
 {
   "schema_version": "runtime-capabilities.v1",
   "dependency_pins": {
-    "stele": "v0.0.0-20261025080141-f38016ec0cba",
-    "baymax": "v0.0.0-20261103091945-d2e08cd6dc8c"
+    "stele": "v0.0.0-20261111135338-19fc90134492",
+    "baymax": "v0.0.0-20261110150429-cca95f31f71b"
   },
   "capabilities": [
     {
@@ -11,7 +11,7 @@
       "status": "verified",
       "public_contract": "POST /v1/provider/context ProviderContextRequest/ProviderContextResponse",
       "evidence": ["internal/context/stele/adapter_test.go", "testdata/runtimeprobe/stele-context-reference.json", "stele/openapi/provider_context_test.go"],
-      "notes": "Pinned response sections, citations and malformed/empty/reference provenance fixtures are deterministic; f38016e fresh PostgreSQL/pgvector initial/restart acceptance also verifies turn-bound context continuity."
+      "notes": "Pinned response sections, citations and malformed/empty/reference provenance fixtures are deterministic; the historical f38016e fresh PostgreSQL/pgvector initial/restart acceptance also verifies turn-bound context continuity on that pin."
     },
     {
       "id": "stele.context.scope-budget",
@@ -27,7 +27,7 @@
       "status": "verified",
       "public_contract": "ProviderContextContinuityInput/Result context-continuity-v1",
       "evidence": ["internal/context/stele/adapter_test.go", "stele/docs/agent-runtime-memory-provider.md"],
-      "notes": "Issue/compare receipt shape and fresh/fresh_compare semantics are validated locally and against the f38016e fresh PostgreSQL/pgvector initial/restart service."
+      "notes": "Issue/compare receipt shape and fresh/fresh_compare semantics are validated locally and against the historical f38016e fresh PostgreSQL/pgvector initial/restart service."
     },
     {
       "id": "stele.context.admitted-projection",
@@ -43,15 +43,15 @@
       "status": "unsupported",
       "public_contract": "ProviderContextContinuityCapabilities exact_snapshot_replay=false",
       "evidence": ["stele/openapi/provider_context.go", "stele/docs/agent-runtime-memory-provider.md"],
-      "notes": "Stele continuity is metadata-only fresh comparison; restart equality uses Danny's admitted projection snapshot."
+      "notes": "Stele continuity is metadata-only fresh comparison; restart equality uses Danny's admitted projection snapshot. Rechecked on 19fc901: openapi.ProviderContextContinuityCapabilities still declares exact_snapshot_replay as a required field with enum [false], so this capability remains unsupported despite the new versioned-context-projections specification."
     },
     {
       "id": "stele.context.live-service",
       "dependency": "stele",
-      "status": "verified",
+      "status": "incomplete",
       "public_contract": "Pinned PostgreSQL-backed provider runtime/context service",
       "evidence": ["testdata/runtimeprobe/stele-f38016-live.evidence.json", "testdata/runtimeprobe/stele-f38016-reference.evidence.json", "testdata/runtimeprobe/stele-f38016-projection.evidence.json", "docs/stele-context-evidence.md"],
-      "notes": "The f38016e pin passed fresh PostgreSQL 18 + pgvector initial/restart verification for provider context, durable references, and runtime feedback projections. Omitted source_metadata defaults to untrusted/restricted and is excluded from public retrieval/context."
+      "notes": "The historical f38016e pin passed fresh PostgreSQL 18 + pgvector initial/restart verification for provider context, durable references, and runtime feedback projections. Those reports are retained but do not cover the current 19fc901 pin: no live service smoke has been rerun since the 2026-11-11 upgrade, so acceptance stays incomplete under OpenSpec task 7.3. Omitted source_metadata defaults to untrusted/restricted and is excluded from public retrieval/context."
     }
   ]
 }

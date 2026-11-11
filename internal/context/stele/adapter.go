@@ -21,7 +21,7 @@ import (
 	"github.com/FelixSeptem/stele/openapi"
 )
 
-const PinnedVersion = "v0.0.0-20261025080141-f38016ec0cba"
+const PinnedVersion = "v0.0.0-20261111135338-19fc90134492"
 
 // ErrIdempotencyConflict means the provider rejected reuse of an exact
 // idempotency key with a different payload. Callers must not retry it as a

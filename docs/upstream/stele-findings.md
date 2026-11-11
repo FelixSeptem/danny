@@ -181,6 +181,30 @@ Danny 没有增加本地 reference store、路径重写或替代写入路径。�
 - **适配器说明：** Stele governance 是异步的，Danny `retrieveReference` 在同一个 retrieve body/idempotency key 下执行有界重试，直到 canonical memory 可见；不会重写 path、重复写 event 或用本地 reference store 替代 Stele。
 - **当前结论：** STELE-007 的原始 turn/context 缺口和后续 Danny live smoke 均已复核通过；Stele context、reference、compilation 和 restart acceptance 不再是当前提案的阻塞项。剩余未完成项是 Baymax/OpenAI-compatible live evidence、assembly ownership cleanup 和 scheduled projection delivery。
 
-## 当前集成 pin
+## 当前集成 pin 与 2026-11-11 复核
 
-Danny 的 provider/context 适配器当前固定到 `github.com/FelixSeptem/stele v0.0.0-20261025080141-f38016ec0cba`（commit `f38016ec0cbafcd6877e2f66ee1da44ea8e4b057`）。该 pin 已通过 Stele 官方 fresh PostgreSQL/pgvector initial/restart assurance，以及 Danny 独立端到端 smoke 的 context、memory、task/run reference、compilation、restart 和 idempotency 验证；STELE-007 已解除。详情见 `docs/stele-context-evidence.md` 和 `testdata/runtimeprobe/stele-f38016-*.evidence.json`。
+Danny 的 provider/context 适配器已由
+`github.com/FelixSeptem/stele v0.0.0-20261025080141-f38016ec0cba`
+（commit `f38016ec0cbafcd6877e2f66ee1da44ea8e4b057`）升级到远端 HEAD
+`v0.0.0-20261111135338-19fc90134492`（commit
+`19fc9013449246539be7ec2f6a875da160d671a2`，原 pin 落后 32 个提交）。
+升级后 `go build ./...`、`go test ./...` 通过，pinned context fixture 对新
+`openapi.SpecYAML()` 仍成立；`ProviderContextContinuityCapabilities` 的
+`exact_snapshot_replay` 在新 pin 仍为 `false`，因此
+`stele.context.snapshot-replay` 继续保持 `unsupported`。
+
+新 pin 的公开变化包括：`ProviderCapabilityDocument.required` 新增
+`corrections`、`MemoryIntentCorrectionAttribution`，以及
+`versioned-context-projections`、`governed-memory-intents`、
+`runtime-memory-provider-contract` 等规格。Danny 当前未消费
+`ProviderCapabilityDocument`，因此这些变化不构成编译期破坏，但所有基于
+`f38016e` 的 live-service 结论都不能自动迁移到新 pin。
+
+上文 `f38016e` 的 Stele 官方 fresh PostgreSQL/pgvector initial/restart
+assurance 与 Danny 六项端到端 smoke 属于**历史证据**，文件保留不改；
+`STELE-007` 仍为已解除状态，未发现新的上游缺陷。
+`testdata/runtimeprobe/stele-capabilities.json` 中的
+`stele.context.live-service` 已标为 `incomplete`：当前 pin 尚未在真实
+PostgreSQL/pgvector 服务上重跑，属 OpenSpec 任务 7.3 的验收范围。
+详情见 `docs/stele-context-evidence.md` 和
+`testdata/runtimeprobe/stele-f38016-*.evidence.json`。

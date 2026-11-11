@@ -31,7 +31,7 @@ func TestCapabilityManifestCoversFormsAndRecordsModeSpecificEvidence(t *testing.
 		if err != nil {
 			t.Fatalf("lookup %s: %v", form, err)
 		}
-		if capability.Dependency != "baymax" || capability.Pin != "v0.0.0-20261103091945-d2e08cd6dc8c" || capability.PublicAPI == "" || capability.Evidence == "" {
+		if capability.Dependency != "baymax" || capability.Pin != "v0.0.0-20261110150429-cca95f31f71b" || capability.PublicAPI == "" || capability.Evidence == "" {
 			t.Fatalf("incomplete evidence for %s: %#v", form, capability)
 		}
 	}

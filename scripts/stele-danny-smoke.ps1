@@ -89,7 +89,7 @@ try {
         & go run ./cmd/runtime-probe stele-smoke | Out-File -LiteralPath $reportPath -Encoding utf8
         if ($LASTEXITCODE -ne 0) { throw "Danny Stele smoke failed" }
         $bundle = Get-Content -Raw -LiteralPath $reportPath | ConvertFrom-Json
-        if ($bundle.schema_version -ne "runtime-probe.v1" -or $bundle.stele_version -ne "v0.0.0-20261025080141-f38016ec0cba") { throw "Danny evidence pin or schema mismatch" }
+        if ($bundle.schema_version -ne "runtime-probe.v1" -or $bundle.stele_version -ne "v0.0.0-20261111135338-19fc90134492") { throw "Danny evidence pin or schema mismatch" }
         foreach ($capability in @("context", "memory", "references", "compilation", "restart", "idempotent")) {
             $events = @($bundle.events | Where-Object { $_.capability -eq $capability })
             if (-not $events -or @($events | Where-Object { $_.kind -eq "terminal" -and $_.status -eq "passed" }).Count -ne 1) {

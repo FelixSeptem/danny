@@ -70,13 +70,13 @@ type CapabilityManifest struct {
 
 func DefaultCapabilityManifest() CapabilityManifest {
 	return NewCapabilityManifest([]Capability{
-		{Form: FormDirect, Status: CapabilityVerified, Dependency: "baymax", Pin: "v0.0.0-20261103091945-d2e08cd6dc8c", PublicAPI: "core/runner.Engine.Run", Evidence: "internal/agent/baymax/adapter_test.go"},
-		{Form: FormSubagent, Status: CapabilityUnsupported, Dependency: "baymax", Pin: "v0.0.0-20261103091945-d2e08cd6dc8c", PublicAPI: "orchestration/composer.DispatchChild", Evidence: "docs/baymax-contract-evidence.md", Reason: "child pause-specific continuation evidence pending"},
-		{Form: FormParallelTeam, Status: CapabilityUnsupported, Dependency: "baymax", Pin: "v0.0.0-20261103091945-d2e08cd6dc8c", PublicAPI: "orchestration/teams", Evidence: "docs/baymax-contract-evidence.md", Reason: "execution wiring verified; native pause/restore capability remains unsupported"},
-		{Form: FormVoteTeam, Status: CapabilityUnsupported, Dependency: "baymax", Pin: "v0.0.0-20261103091945-d2e08cd6dc8c", PublicAPI: "orchestration/teams", Evidence: "docs/baymax-contract-evidence.md", Reason: "execution wiring verified; native pause/restore capability remains unsupported"},
-		{Form: FormWorkflow, Status: CapabilityVerified, Dependency: "baymax", Pin: "v0.0.0-20261103091945-d2e08cd6dc8c", PublicAPI: "orchestration/workflow.Engine", Evidence: "internal/agent/baymax/adapter_test.go", Reason: "verified for explicit file-backed workflow continuation on same-host single-writer deployment"},
-		{Form: FormMailbox, Status: CapabilityVerified, Dependency: "baymax", Pin: "v0.0.0-20261103091945-d2e08cd6dc8c", PublicAPI: "orchestration/mailbox.AdmitHostPlan", Evidence: "internal/agent/baymax/scheduled_test.go", Reason: "verified for one admitted logical message with native lease/retry/DLQ; agent pause restore remains unsupported"},
-		{Form: FormScheduled, Status: CapabilityVerified, Dependency: "baymax", Pin: "v0.0.0-20261103091945-d2e08cd6dc8c", PublicAPI: "orchestration/scheduler", Evidence: "internal/agent/baymax/scheduled_test.go"},
+		{Form: FormDirect, Status: CapabilityVerified, Dependency: "baymax", Pin: "v0.0.0-20261110150429-cca95f31f71b", PublicAPI: "core/runner.Engine.Run", Evidence: "internal/agent/baymax/adapter_test.go"},
+		{Form: FormSubagent, Status: CapabilityUnsupported, Dependency: "baymax", Pin: "v0.0.0-20261110150429-cca95f31f71b", PublicAPI: "orchestration/composer.DispatchChild", Evidence: "docs/baymax-contract-evidence.md", Reason: "upstream 194 publishes per-pause child restore evidence at this pin; Danny adapter has not wired or verified it"},
+		{Form: FormParallelTeam, Status: CapabilityUnsupported, Dependency: "baymax", Pin: "v0.0.0-20261110150429-cca95f31f71b", PublicAPI: "orchestration/teams", Evidence: "docs/baymax-contract-evidence.md", Reason: "upstream team continuation contract exists at this pin; Danny adapter has not wired or verified pause/restore"},
+		{Form: FormVoteTeam, Status: CapabilityUnsupported, Dependency: "baymax", Pin: "v0.0.0-20261110150429-cca95f31f71b", PublicAPI: "orchestration/teams", Evidence: "docs/baymax-contract-evidence.md", Reason: "upstream team continuation contract exists at this pin; Danny adapter has not wired or verified pause/restore"},
+		{Form: FormWorkflow, Status: CapabilityVerified, Dependency: "baymax", Pin: "v0.0.0-20261110150429-cca95f31f71b", PublicAPI: "orchestration/workflow.Engine", Evidence: "internal/agent/baymax/adapter_test.go", Reason: "verified for explicit file-backed workflow continuation on same-host single-writer deployment"},
+		{Form: FormMailbox, Status: CapabilityVerified, Dependency: "baymax", Pin: "v0.0.0-20261110150429-cca95f31f71b", PublicAPI: "orchestration/mailbox.AdmitHostPlan", Evidence: "internal/agent/baymax/scheduled_test.go", Reason: "verified for one admitted logical message with native lease/retry/DLQ; upstream 198 handler pause restore is not wired into Danny"},
+		{Form: FormScheduled, Status: CapabilityVerified, Dependency: "baymax", Pin: "v0.0.0-20261110150429-cca95f31f71b", PublicAPI: "orchestration/scheduler", Evidence: "internal/agent/baymax/scheduled_test.go"},
 	})
 }
 

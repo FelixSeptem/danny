@@ -25,7 +25,7 @@ func TestOfflineFixtureIsValidAndStable(t *testing.T) {
 		t.Fatal(err)
 	}
 	sum := sha256.Sum256(raw)
-	if got := hex.EncodeToString(sum[:]); got != "be4703d95f02d01147d8d51af95f0c01140e03a1dde3445d048f72aaeedfb4fa" {
+	if got := hex.EncodeToString(sum[:]); got != "8d5d4c1366b266436b58b0813bd62fa82af6a6141ac395b67d0f27527f007d0c" {
 		t.Fatalf("fixture hash changed: %s", got)
 	}
 }

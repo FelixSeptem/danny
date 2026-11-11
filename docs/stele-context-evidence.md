@@ -5,8 +5,9 @@ This document records the context boundary evidence for the pinned Stele depende
 ## Pin and Public Contract
 
 - Dependency: `github.com/FelixSeptem/stele`
-- Current dependency pin: `v0.0.0-20261025080141-f38016ec0cba` (`f38016e`)
-- Latest live-service evidence: `testdata/runtimeprobe/stele-f38016-danny-smoke.evidence.json` (2026-10-26), plus the independent Stele assurance reports listed below.
+- Current dependency pin: `v0.0.0-20261111135338-19fc90134492` (`19fc901`)
+- Live-service evidence for the current pin: not yet captured; see "Pin Refresh" below and OpenSpec task 7.3.
+- Latest live-service evidence (historical, `f38016e` pin): `testdata/runtimeprobe/stele-f38016-danny-smoke.evidence.json` (2026-10-26), plus the independent Stele assurance reports listed below.
 - Historical blocked version: `v0.0.0-20261019065620-7ffd30f9e635`
 - Contract source: `openapi.SpecYAML()` from the pinned module, especially `ProviderContextInput`, `ProviderContextResponse`, `ProviderContextReference`, `ProviderContextSourceCitation`, `ProviderContextBudgetAccounting`, and `ProviderContextContinuityResult`.
 - Danny adapter: `internal/context/stele/adapter.go`
@@ -29,7 +30,7 @@ Related negative fixtures in `internal/context/stele/adapter_test.go` reject tur
 
 ## Live Service Status
 
-The current `f38016ec0cba` source was built as an isolated image and verified
+The historical `f38016ec0cba` source was built as an isolated image and verified
 against a fresh PostgreSQL 18 + pgvector stack using Stele's
 `stele-provider-context-verify.ps1`. Initial and restart phases passed the
 public context contract, durable exact-path reference contract, and runtime
@@ -75,7 +76,7 @@ the remaining turn failure is recorded as `STELE-007`. Context turn/continuity
 and dependent acceptance remain blocked. No local route fallback, disclosure
 bypass, or native endpoint substitution is used.
 
-The current `f38016e` pin documents that omitted event `source_metadata`
+The `f38016e` pin documents that omitted event `source_metadata`
 defaults to `untrusted/restricted`, which governance may promote but public
 retrieve/context will exclude. Its fresh PostgreSQL/pgvector verification is
 captured above. Danny's runtime reference writers now supply an explicit,
@@ -93,3 +94,24 @@ Compose resources and bootstrap credential directory were removed after the
 run. The references check intentionally uses a bounded retrieve retry because
 Stele governance is asynchronous; it does not rewrite paths or repeat the
 event write.
+
+## Pin Refresh (2026-11-11)
+
+`go get github.com/FelixSeptem/stele@19fc90134492` moved the dependency from
+`v0.0.0-20261025080141-f38016ec0cba` to
+`v0.0.0-20261111135338-19fc90134492` (32 upstream commits). `go build ./...`
+and `go test ./...` pass on the new pin, including
+`TestPinnedContextFixtureMatchesOpenAPIAndProjectionBoundary` against the
+refreshed `openapi.SpecYAML()`.
+
+Public contract changes since `f38016e` include `corrections` in
+`ProviderCapabilityDocument.required`, `MemoryIntentCorrectionAttribution`,
+and the `versioned-context-projections` / `governed-memory-intents` /
+`runtime-memory-provider-contract` specifications. Danny does not consume
+`ProviderCapabilityDocument`, so these are not compile-time breaks, but the
+live-service reports above are bound to the old image digest and must not be
+read as evidence for the current pin. `exact_snapshot_replay` is still declared
+`false`, so `stele.context.snapshot-replay` remains `unsupported` and
+`stele.context.live-service` is now `incomplete` in the capability manifest.
+Re-running the fresh PostgreSQL 18 + pgvector initial/restart assurance and
+the Danny six-capability smoke on `19fc901` is part of task 7.3.

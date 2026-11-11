@@ -10,7 +10,7 @@ func TestSteleCapabilityManifestIsVersionedAndExplicit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if manifest.DependencyPins["stele"] != "v0.0.0-20261025080141-f38016ec0cba" {
+	if manifest.DependencyPins["stele"] != "v0.0.0-20261111135338-19fc90134492" {
 		t.Fatalf("stele pin=%q", manifest.DependencyPins["stele"])
 	}
 	statuses := map[string]string{}
@@ -20,7 +20,7 @@ func TestSteleCapabilityManifestIsVersionedAndExplicit(t *testing.T) {
 	for id, want := range map[string]string{
 		"stele.context.schema":          "verified",
 		"stele.context.continuity":      "verified",
-		"stele.context.live-service":    "verified",
+		"stele.context.live-service":    "incomplete",
 		"stele.context.snapshot-replay": "unsupported",
 	} {
 		if statuses[id] != want {

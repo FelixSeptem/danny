@@ -6,7 +6,7 @@ production-ready.
 
 ## Pin
 
-`github.com/FelixSeptem/baymax v0.0.0-20261103091945-d2e08cd6dc8c`
+`github.com/FelixSeptem/baymax v0.0.0-20261110150429-cca95f31f71b`
 
 ## Verified Public Surfaces
 
@@ -38,9 +38,11 @@ production-ready.
   multi-instance recovery.
 - Mailbox history is source-specific lifecycle history; acknowledgement or DLQ
   terminal facts are not runner completion or a product commit.
-- Public checkpoint restore coverage for `input_required`,
-  `approval_required`, and `budget_exhausted` across runner, child, team,
-  workflow and mailbox paths is not established by package presence.
+- The current pin publishes per-pause-reason continuation capability evidence
+  for child, team and mailbox handler owners (upstream 194/198 and the team
+  continuation contract), but Danny has not wired those owners. Public contract
+  presence is not a product restore claim: `internal/runtimeboundary/contracts.go`
+  keeps child/team pause restore unsupported and mailbox handler restore unclaimed.
 - Native source retention and replay after a process restart require a concrete
   source store or a documented store extension point; the in-memory runner
   fixture proves source identity/cursor projection only, not cross-process
@@ -61,10 +63,10 @@ coordination, or multi-instance recovery.
 | Form | Source identity and order | Retention, replay, and crash-before-projection | Checkpoint restore and pause coverage |
 | --- | --- | --- | --- |
 | Runner | `runner` source ref; source-local sequence and opaque cursor through `core/runner.WithNativeEventHistory` | Explicit owner journal only. Memory is process-local; file journal reopens sequentially, reports a retention floor, and rejects expired cursors. If append committed before Danny projection, the file owner can replay that fact; no atomic transaction joins the source append and Danny projection. | `Engine.ContinuationCapabilities` advertises restore only with a configured cross-process checkpoint store, dependency binding, approval and budget producers. The pinned `core/runner/native_continuation_process_test.go` exercises all three pauses (`input_required`, `approval_required`, `budget_exhausted`) in a new process. Deployment configuration remains required. |
-| Child / composer | `child` source ref; source-local sequence and opaque cursor through `composer.WithNativeEventHistory` | Explicit child owner journal; same bounded memory/file journal semantics. Reopen/replay is source-fact recovery only and is not atomic with Danny projection. | Child continuation has memory/file stores and recovery contract tests, but composer README requires independent source evidence per pause reason and explicitly does not equate scheduler retry/recovery snapshots with pause continuation. No continuation capability source advertises all three pause reasons at this pin. Treat all three pause restores as unsupported for admission until such evidence is exposed. |
-| Team | `team` source ref; source-local sequence and opaque cursor through `teams.WithNativeEventHistory` | Explicit team journal; same bounded memory/file journal semantics. Source facts can be replayed after sequential reopen when file-backed; no source/projection atomicity. | No team native continuation/checkpoint restore contract or pause capability declaration in the pinned public surface. `input_required`, `approval_required`, and `budget_exhausted` restore are unsupported. |
+| Child / composer | `child` source ref; source-local sequence and opaque cursor through `composer.WithNativeEventHistory` | Explicit child owner journal; same bounded memory/file journal semantics. Reopen/replay is source-fact recovery only and is not atomic with Danny projection. | Upstream 194 now exposes `Composer.ContinuationCapabilities` with all three pause reasons supported when a file child continuation store, native history and executor are configured (`TestComposerRestoresChildContinuationWithFreshOwnersForEachPauseReason`). Danny has not wired this owner, so child pause restore remains unsupported for product admission. |
+| Team | `team` source ref; source-local sequence and opaque cursor through `teams.WithNativeEventHistory` | Explicit team journal; same bounded memory/file journal semantics. Source facts can be replayed after sequential reopen when file-backed; no source/projection atomicity. | The team continuation contract now exposes `Engine.ContinuationCapabilities` with bounded deployment evidence. Danny has not wired or revalidated it; team pause restore remains unsupported for product admission. |
 | Workflow | `workflow` source ref; source-local sequence and opaque cursor through `workflow.WithNativeEventHistory` | Explicit workflow journal; same bounded memory/file journal semantics. Source facts can be replayed after sequential reopen when file-backed; no source/projection atomicity. | `Engine.ContinuationCapabilities` advertises file-store cross-process restore under the workflow owner namespace. Pinned workflow continuation tests cover `input_required`, `approval_required`, and `budget_exhausted`, including new-engine restore. This is workflow-specific and same-host/single-writer only. |
-| Mailbox | `mailbox.history.v1` source instance; lifecycle sequence and opaque cursor from `Mailbox.HistorySource`/`ReadAfter` | FileStore persists mailbox snapshot and reference-only lifecycle journal atomically. The pinned mailbox tests prove new-process replay, retention-floor/gap errors, and read-only replay. Replay covers mailbox transitions only, not native Agent events or application projection atomicity. | Mailbox is not an Agent continuation owner. `acked`, `dead_letter`, and `expired` are mailbox lifecycle outcomes, not runner completion or product commit. All three Agent pause restore reasons are unsupported by this contract. |
+| Mailbox | `mailbox.history.v1` source instance; lifecycle sequence and opaque cursor from `Mailbox.HistorySource`/`ReadAfter` | FileStore persists mailbox snapshot and reference-only lifecycle journal atomically. The pinned mailbox tests prove new-process replay, retention-floor/gap errors, and read-only replay. Replay covers mailbox transitions only, not native Agent events or application projection atomicity. | Upstream 198 adds `NewContinuationWorker` handler safe points for the three canonical pause reasons within a same-host single-writer deployment scope; lifecycle-only owners still fail closed. Danny has not wired the continuation worker, so product admission does not claim handler pause restore. `acked`, `dead_letter`, and `expired` remain mailbox lifecycle outcomes, not runner completion or product commit. |
 
 Executable evidence:
 
@@ -79,9 +81,14 @@ Executable evidence:
 - Pinned runner `TestNativeContinuationCrossProcess` and workflow
   `TestEngineResumeContinuationRestoresFromFileStoreOnNewEngine` are the
   pause-specific restore evidence named by their capability declarations.
-- Pinned composer `orchestration/composer/README.md` and continuation tests are
-  the explicit limit evidence: child continuation primitives exist, but the
-  public form does not advertise a complete three-pause capability matrix.
+- `internal/agent/baymax/pinned_upstream_contract_test.go` re-runs the two
+  Baymax findings against this pin: explicit owner-store binding, fresh-open
+  replay, projection reconciliation idempotency, cross-machine rejection, and
+  fail-closed continuation capability matrices.
+- Upstream `orchestration/composer/capability.go` and the archived 194/198
+  changes now advertise complete three-pause capability matrices for configured
+  child, team and mailbox owners. Those are source contracts, not Danny product
+  availability; see `docs/upstream/baymax-findings.md`.
 
 No form provides a transaction spanning source history append and Danny
 projection persistence. A source append that committed before projection can
@@ -96,3 +103,28 @@ deterministic fake-model fixture or a real smoke record with the same pin.
 Missing credentials or a missing native store is incomplete evidence. Danny
 does not add a production runtime journal, fake checkpoint, unconditional vote,
 or probe completion to hide an upstream gap.
+
+## Pin Refresh (2026-11-11)
+
+`go get github.com/FelixSeptem/baymax@cca95f31f71b` moved this document from
+`v0.0.0-20261103091945-d2e08cd6dc8c` to
+`v0.0.0-20261110150429-cca95f31f71b` (10 upstream commits). The new public
+surfaces are `core/history.OpenOwnerStore` (explicit source binding with a
+projection ledger, coordinator and deployment-scope checks), the child/team
+continuation capability sources, and `mailbox.NewContinuationWorker` handler
+safe points. `go build ./...`, `go test ./...` and the three new pinned fixtures
+pass on the new pin.
+
+None of these contracts changes Danny's product availability: the capability
+manifest still marks child/team pause restore unsupported, source append and
+Danny projection remain non-atomic, and the deployment scope is still
+same-host single-writer sequential reopen (or same-host multi-instance CAS with
+a coordinator). The two unresolved Baymax findings are narrowed, not closed.
+See `docs/upstream/baymax-findings.md`.
+
+The 2026-11-11 refresh also rechecked the live-smoke prerequisites: no
+`OPENAI_BASE_URL`, `OPENAI_MODEL`, or `OPENAI_API_KEY` is configured, so no
+real OpenAI-compatible endpoint was contacted. The existing
+`testdata/runtimeprobe/baymax-live-smoke-unavailable.evidence.json` records
+that state for the previous pin; the current pin has no live evidence at all.
+Task 7.3 therefore remains incomplete acceptance.

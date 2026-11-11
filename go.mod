@@ -3,8 +3,8 @@ module github.com/FelixSeptem/danny
 go 1.26.8
 
 require (
-	github.com/FelixSeptem/baymax v0.0.0-20261103091945-d2e08cd6dc8c
-	github.com/FelixSeptem/stele v0.0.0-20261025080141-f38016ec0cba
+	github.com/FelixSeptem/baymax v0.0.0-20261110150429-cca95f31f71b
+	github.com/FelixSeptem/stele v0.0.0-20261111135338-19fc90134492
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.11.0
 	modernc.org/sqlite v1.60.1
@@ -43,8 +43,8 @@ require (
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/spf13/viper v1.20.1 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
-	github.com/tidwall/gjson v1.18.0 // indirect
-	github.com/tidwall/match v1.1.1 // indirect
+	github.com/tidwall/gjson v1.19.0 // indirect
+	github.com/tidwall/match v1.2.0 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect

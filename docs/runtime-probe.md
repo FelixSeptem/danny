@@ -93,10 +93,12 @@ The latest committed Compose-backed Stele run is recorded at
 was captured against `github.com/FelixSeptem/stele
 v0.0.0-20261007033528-a556ac0ddacc` and is not evidence for the current pin.
 The current adapter is pinned to
-`github.com/FelixSeptem/stele v0.0.0-20261025080141-f38016ec0cba`. Its public
-turn-bound context contract is exercised by local adapter fixtures and by the
-current pinned PostgreSQL/pgvector evidence in
-`testdata/runtimeprobe/stele-f38016-*.evidence.json`. The historical context,
+`github.com/FelixSeptem/stele v0.0.0-20261111135338-19fc90134492`. Its public
+turn-bound context contract is exercised by local adapter fixtures against
+the refreshed `openapi.SpecYAML()`. The PostgreSQL/pgvector evidence in
+`testdata/runtimeprobe/stele-f38016-*.evidence.json` belongs to the historical
+`f38016e` pin and is not evidence for the current pin; task 7.3 still requires
+a live service rerun on `19fc901`. The historical context,
 basic memory append/query, fresh-adapter restart projection, and occurrence
 replay results below remain historical context only. The provider principal UUID issue from
 `STELE-002`, canonical path promotion issue from `STELE-003`, summary
@@ -122,11 +124,12 @@ source/application digests and continuity outcomes only; it never stores the
 context body, query, credential or authorization headers. That pin's
 `400 operation_failed` result is retained in
 `testdata/runtimeprobe/stele-b631-live.evidence.json` and `STELE-007`.
-The current f38016e pin passed the original Stele assurance and Danny's
+The historical `f38016e` pin passed the original Stele assurance and Danny's
 fresh PostgreSQL/pgvector end-to-end smoke; sanitized reports are in
 `testdata/runtimeprobe/stele-f38016-*.evidence.json`, including
-`stele-f38016-danny-smoke.evidence.json`.
-The current `f38016e` pin additionally documents that events omitting
+`stele-f38016-danny-smoke.evidence.json`. They are retained as historical
+evidence and do not cover the current `19fc901` pin.
+The `f38016e` pin additionally documents that events omitting
 `source_metadata` default to `untrusted/restricted` and remain excluded from
 public retrieve/context. Danny reference classifications must follow product
 data policy rather than retrieval needs.
