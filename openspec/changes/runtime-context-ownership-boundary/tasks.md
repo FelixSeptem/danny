@@ -78,6 +78,13 @@ because promoting it would need the real integration path.
 Task 7.3 stays blocked on real OpenAI-compatible credentials and a live Stele
 service rerun; tasks 8.2 and 8.3 cannot be checked until that evidence exists.
 
+The live harness is no longer direct-only. `cmd/runtime-probe live-smoke` now
+runs `direct`, `child`, `team_parallel`, `team_vote`, `workflow` and `mailbox`
+through Danny's authorized adapter against the configured endpoint, with
+`DANNY_LIVE_FORMS` to re-run a subset. A failing form records
+`failed-contract`, keeps the evidence of the forms that passed, and exits
+non-zero. What is still missing is the credential, not the coverage.
+
 - [x] 7.1 Extend deterministic contracts for all six execution forms, native tools/events, planning, context trust/budgets, product revision conflicts, and Run/Stream aggregation/terminal parity; verify each new or modified spec scenario is covered by an assertion or explicit pinned contract evidence.
 - [x] 7.2 Run restart/crash/concurrency acceptance on SQLite and PostgreSQL for event/cursor transactions, native recovery bindings, context snapshots, scheduled effects, generation commits, and pending outboxes; verify shared observable results and no duplicate logical mutations or fabricated replay history.
 - [ ] 7.3 Capture real OpenAI-compatible smoke evidence for applicable direct/child/team/workflow/mailbox paths and a real pinned Stele service for scoped context, provenance, session/turn continuity, and restart-idempotent memory; verify every availability claim has real correlation/pin/evidence and unavailable credentials or services are recorded as incomplete acceptance.

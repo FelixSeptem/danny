@@ -19,6 +19,11 @@ const (
 	maxWorkflowRetries       = 3
 )
 
+// WorkflowContractVersion is the versioned request contract callers must send
+// in WorkflowRequest.Version. It is exported so harnesses and callers do not
+// duplicate the literal.
+const WorkflowContractVersion = workflowContractVersion
+
 var (
 	ErrWorkflowRequest = errors.New("baymax: invalid authorized workflow request")
 	ErrWorkflowPaused  = workflow.ErrWorkflowPaused

@@ -16,15 +16,35 @@ endpoint. Stele is represented as `skipped-unconfigured` until a real Stele
 service and PostgreSQL system of record are configured; no in-memory substitute
 is used.
 
-The opt-in live path is separate:
+The opt-in live path is separate. It runs every execution form the ad-hoc
+`live-smoke` gate covers against one configured endpoint:
 
 ```powershell
-$env:OPENAI_BASE_URL = "https://provider.example/v1"
+$env:OPENAI_BASE_URL = "https://provider.example/v1"  # must implement the Responses API
 $env:OPENAI_API_KEY = "..."
 $env:OPENAI_MODEL = "model-name"
-$env:STELE_URL = "http://127.0.0.1:8080"
 go run ./cmd/runtime-probe live-smoke > live-runtime-probe.json
 ```
+
+Forms: `direct`, `child`, `team_parallel`, `team_vote`, `workflow`, `mailbox`.
+Each form runs through Danny's authorized adapter, so the evidence records the
+product path rather than a probe-only shortcut. `DANNY_LIVE_FORMS` restricts a
+re-run to a subset (unknown names are rejected): `DANNY_LIVE_FORMS=direct,child`.
+`DANNY_LIVE_OWNER_ROOT` overrides the per-run owner root, which defaults to
+`.tmp/live-probe/<run-id>` and is never reused between runs.
+
+The endpoint must implement the OpenAI Responses API (`/v1/responses`). The
+pinned adapter profile declares `responses.v1`; a chat-completions-only
+endpoint is rejected as `openai_endpoint_profile_unsupported_api_shape` before
+any request is sent. `team_vote` requires the model to answer with a single
+`approve`/`reject` token, because vote aggregation rejects prose.
+
+A failing form marks its own events `failed-contract` and the run exits
+non-zero, but the bundle for the forms that did pass is still written to
+stdout. That keeps a partial gate diagnosable without letting it look like a
+pass. Do not set `STELE_URL` for this command: the live-smoke Stele call does
+not load a runtime credential, and a real service will reject it. Run
+`stele-smoke` separately.
 
 On 2026-11-05 this command was run with `OPENAI_BASE_URL`, `OPENAI_MODEL`,
 and `OPENAI_API_KEY` unset. It returned `skipped-unconfigured` without

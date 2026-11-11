@@ -29,6 +29,8 @@ func TestLiveSmokeUsesConfiguredOpenAICompatibleEndpointAndRedactsCredential(t *
 	t.Setenv("OPENAI_API_KEY", "sentinel-openai-key")
 	t.Setenv("OPENAI_MODEL", "probe-model")
 	t.Setenv("STELE_URL", server.URL)
+	t.Setenv("DANNY_LIVE_FORMS", "direct")
+	t.Setenv("DANNY_LIVE_OWNER_ROOT", t.TempDir())
 
 	bundle, err := liveSmoke(context.Background())
 	if err != nil {
@@ -60,6 +62,112 @@ func TestLiveSmokeSkipsWithoutExplicitConfiguration(t *testing.T) {
 	if got := bundle.Events[0].Status; got != runtimeprobe.StatusSkippedUnconfigured {
 		t.Fatalf("status = %q, want skipped-unconfigured", got)
 	}
+}
+
+func TestLiveSmokeCoversEverySelectedFormWithPassedProviderEvidence(t *testing.T) {
+	server := newLiveProviderFake(t, "approve")
+	defer server.Close()
+	t.Setenv("OPENAI_BASE_URL", server.URL)
+	t.Setenv("OPENAI_API_KEY", "sentinel-live-key")
+	t.Setenv("OPENAI_MODEL", "probe-model")
+	t.Setenv("STELE_URL", "")
+	t.Setenv("DANNY_LIVE_FORMS", "")
+	t.Setenv("DANNY_LIVE_OWNER_ROOT", t.TempDir())
+
+	bundle, err := liveSmoke(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := bundle.Validate(); err != nil {
+		t.Fatalf("live bundle invalid: %v", err)
+	}
+
+	wantKinds := map[string]runtimeprobe.Kind{
+		"live:direct":        runtimeprobe.KindParent,
+		"live:child":         runtimeprobe.KindChild,
+		"live:team:parallel": runtimeprobe.KindTeam,
+		"live:team:vote":     runtimeprobe.KindTeam,
+		"live:workflow":      runtimeprobe.KindChild,
+		"live:mailbox":       runtimeprobe.KindMailbox,
+	}
+	for correlation, wantKind := range wantKinds {
+		var sawKind, sawTerminal bool
+		for _, event := range bundle.Events {
+			if event.CorrelationID != correlation {
+				continue
+			}
+			if event.Kind == wantKind {
+				sawKind = true
+			}
+			if event.Kind == runtimeprobe.KindTerminal {
+				sawTerminal = true
+				if event.Status != runtimeprobe.StatusPassed {
+					t.Fatalf("%s terminal status = %q payload=%#v", correlation, event.Status, event.Payload)
+				}
+			}
+		}
+		if !sawKind || !sawTerminal {
+			t.Fatalf("%s kind=%v terminal=%v", correlation, sawKind, sawTerminal)
+		}
+	}
+}
+
+func TestLiveSmokeKeepsPartialEvidenceWhenAFormFailsContract(t *testing.T) {
+	// Vote aggregation only accepts a single approve/reject token, so "ok" is a
+	// real contract failure for that form.
+	server := newLiveProviderFake(t, "ok")
+	defer server.Close()
+	t.Setenv("OPENAI_BASE_URL", server.URL)
+	t.Setenv("OPENAI_API_KEY", "sentinel-live-key")
+	t.Setenv("OPENAI_MODEL", "probe-model")
+	t.Setenv("STELE_URL", "")
+	t.Setenv("DANNY_LIVE_FORMS", "direct,team_vote")
+	t.Setenv("DANNY_LIVE_OWNER_ROOT", t.TempDir())
+
+	bundle, err := liveSmoke(context.Background())
+	if err == nil {
+		t.Fatal("incomplete live run returned no error")
+	}
+	if len(bundle.Events) == 0 {
+		t.Fatal("incomplete live run discarded collected evidence")
+	}
+	if validateErr := bundle.Validate(); validateErr != nil {
+		t.Fatalf("partial bundle invalid: %v", validateErr)
+	}
+	statuses := map[string]runtimeprobe.Status{}
+	for _, event := range bundle.Events {
+		if event.Kind == runtimeprobe.KindTerminal {
+			statuses[event.CorrelationID] = event.Status
+		}
+	}
+	if statuses["live:direct"] != runtimeprobe.StatusPassed {
+		t.Fatalf("direct terminal = %q, want passed", statuses["live:direct"])
+	}
+	if statuses["live:team:vote"] != runtimeprobe.StatusFailedContract {
+		t.Fatalf("vote terminal = %q, want failed-contract", statuses["live:team:vote"])
+	}
+}
+
+func TestLiveSmokeRejectsUnknownFormFilter(t *testing.T) {
+	t.Setenv("OPENAI_BASE_URL", "http://127.0.0.1:1")
+	t.Setenv("OPENAI_MODEL", "probe-model")
+	t.Setenv("DANNY_LIVE_FORMS", "direct,not-a-form")
+	t.Setenv("DANNY_LIVE_OWNER_ROOT", t.TempDir())
+	if _, err := liveSmoke(context.Background()); err == nil || !strings.Contains(err.Error(), "not-a-form") {
+		t.Fatalf("error = %v, want unknown form rejection", err)
+	}
+}
+
+func newLiveProviderFake(t *testing.T, answer string) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/responses" {
+			_, _ = w.Write([]byte(`{"id":"resp-live","output":[{"type":"message","content":[{"type":"output_text","text":"` + answer + `"}]}]}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"context_id":"ctx-live"}`))
+	}))
 }
 
 func TestSteleContextProjectionUsesTurnBoundContract(t *testing.T) {

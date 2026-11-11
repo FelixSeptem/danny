@@ -100,6 +100,11 @@ Executable evidence:
   `TestTeamOwnerRestoresEachPauseReasonAfterFreshProcess` and
   `TestMailboxOwnerRestoresEachPauseReasonAfterFreshProcess` cover the three
   canonical pause reasons per execution form through the adapter-built owners.
+- `cmd/runtime-probe live-smoke` runs direct, child, parallel team, vote team,
+  workflow and mailbox through the authorized adapter against the configured
+  endpoint, with per-form `passed`/`failed-contract` evidence. Deterministic
+  coverage is complete; there is still no real-provider artifact for this pin
+  because no credential is configured.
 
 No form provides a transaction spanning source history append and Danny
 projection persistence. A source append that committed before projection can
