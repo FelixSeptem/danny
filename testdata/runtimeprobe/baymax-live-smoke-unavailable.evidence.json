@@ -1,0 +1,28 @@
+{
+  "schema_version": "runtime-probe.v1",
+  "baymax_version": "v0.0.0-20261103091945-d2e08cd6dc8c",
+  "stele_version": "v0.0.0-20261025080141-f38016ec0cba",
+  "acceptance": "incomplete",
+  "reason": "OPENAI_BASE_URL, OPENAI_MODEL, and OPENAI_API_KEY were not configured; no real OpenAI-compatible endpoint was contacted",
+  "events": [
+    {
+      "sequence": 1,
+      "id": "live:parent",
+      "kind": "parent",
+      "correlation_id": "live",
+      "capability": "live-smoke",
+      "status": "skipped-unconfigured",
+      "at": "1970-01-01T00:00:00Z"
+    },
+    {
+      "sequence": 2,
+      "id": "live:terminal",
+      "kind": "terminal",
+      "parent_id": "live:parent",
+      "correlation_id": "live",
+      "capability": "live-smoke",
+      "status": "skipped-unconfigured",
+      "at": "1970-01-01T00:00:00.000000001Z"
+    }
+  ]
+}

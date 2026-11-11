@@ -1,0 +1,244 @@
+{
+  "result": "passed",
+  "stage": "restart",
+  "schema_version": "provider-v1",
+  "openapi_digest": "6721f887c0ebc4d1806997abbdfde5404a2cdb1b6f0682857cd1fc747d3a8265",
+  "image_digest": "sha256:8835b606d21c55cbf2d00cd6cc43f73e553b97c0ee7502be550e80a08c481e1e",
+  "source_revision": "f38016ec0cbafcd6877e2f66ee1da44ea8e4b057",
+  "source_digest": "8d5c0341a8ae0c08f029aa39027accd5c3eb86c11b19b4eebacadf0fcf5aac95",
+  "scope_hash": "26a10cb10b558d784d74e27b5ce75dc96a4d313a8a5fdfd78e12e91fc16e303d",
+  "identity_hash": "cde362a9eb887fa67de5926c93b61592606975e0e772eb7b998bdb2d09b51502",
+  "citation_hash": "a0ce6b327eb9a1862d168774633799e441b7363c9156d6275fa7a0dcd0188771",
+  "governance_completed": 11,
+  "disclosure_policy_version": "context-disclosure-v1",
+  "source_metadata_version": "source-metadata-v1",
+  "durable_labels_verified": true,
+  "checks": [
+    "public_http_schema",
+    "capability_digest",
+    "governance_completed",
+    "event_replay",
+    "nonroot_exact_path",
+    "explicit_prefix",
+    "genuine_empty",
+    "foreign_scope_denied",
+    "lifecycle_excluded",
+    "citations_present",
+    "provider_turn_creation_optional_and_explicit_conversation",
+    "durable_source_labels",
+    "label_replay_conflict",
+    "reference_only_schema",
+    "old_binding_downgrade",
+    "alternate_route_denials",
+    "attestation_authorization",
+    "attestation_replay_reauthorization",
+    "revoked_binding_denied",
+    "unconfigured_profile_denied",
+    "forgotten_deleted_excluded",
+    "high_restricted_excluded",
+    "budget_discovery",
+    "budget_actual_body_bytes",
+    "budget_utf8_content_bytes",
+    "budget_unique_citations",
+    "budget_zero_content",
+    "budget_zero_citations",
+    "budget_omitted_limits",
+    "budget_server_intersection",
+    "budget_minimum_response_413",
+    "budget_unsupported_sections",
+    "budget_safe_empty_no_reasons",
+    "continuity_current_source_changed",
+    "continuity_expired_refused",
+    "continuity_cleaned_reference_unavailable",
+    "api_worker_restart_identity"
+  ],
+  "budget_contract_version": "context-budget-v1",
+  "budget_packing_version": "context-packing-v1",
+  "budget_outcomes": [
+    "content-omitted:selected",
+    "content-empty-limits:selected",
+    "content-oversized:selected",
+    "content-zero-content:budget_exhausted",
+    "content-zero-citations:budget_exhausted",
+    "content-unsupported:selected",
+    "content-safe-empty-0:empty",
+    "content-safe-empty-1:empty",
+    "content-safe-empty-2:empty",
+    "content-safe-empty-3:empty",
+    "content-safe-empty-4:empty",
+    "content-safe-empty-5:empty",
+    "content-minimum-response:413",
+    "reference-omitted:selected",
+    "reference-empty-limits:selected",
+    "reference-oversized:selected",
+    "reference-zero-content:selected",
+    "reference-zero-citations:budget_exhausted",
+    "reference-unsupported:selected",
+    "reference-safe-empty-0:empty",
+    "reference-safe-empty-1:empty",
+    "reference-safe-empty-2:empty",
+    "reference-safe-empty-3:empty",
+    "reference-safe-empty-4:empty",
+    "reference-safe-empty-5:empty",
+    "reference-minimum-response:413"
+  ],
+  "budget_usage": [
+    {
+      "citations": 1,
+      "content_bytes": 118,
+      "items": 1,
+      "response_bytes": 2354
+    },
+    {
+      "citations": 1,
+      "content_bytes": 118,
+      "items": 1,
+      "response_bytes": 2364
+    },
+    {
+      "citations": 1,
+      "content_bytes": 118,
+      "items": 1,
+      "response_bytes": 2385
+    },
+    {
+      "citations": 0,
+      "content_bytes": 0,
+      "items": 0,
+      "response_bytes": 1439
+    },
+    {
+      "citations": 0,
+      "content_bytes": 0,
+      "items": 0,
+      "response_bytes": 1443
+    },
+    {
+      "citations": 1,
+      "content_bytes": 118,
+      "items": 1,
+      "response_bytes": 2435
+    },
+    {
+      "citations": 0,
+      "content_bytes": 0,
+      "items": 0,
+      "response_bytes": 1408
+    },
+    {
+      "citations": 0,
+      "content_bytes": 0,
+      "items": 0,
+      "response_bytes": 1408
+    },
+    {
+      "citations": 0,
+      "content_bytes": 0,
+      "items": 0,
+      "response_bytes": 1408
+    },
+    {
+      "citations": 0,
+      "content_bytes": 0,
+      "items": 0,
+      "response_bytes": 1408
+    },
+    {
+      "citations": 0,
+      "content_bytes": 0,
+      "items": 0,
+      "response_bytes": 1408
+    },
+    {
+      "citations": 0,
+      "content_bytes": 0,
+      "items": 0,
+      "response_bytes": 1408
+    },
+    {
+      "citations": 1,
+      "content_bytes": 0,
+      "items": 1,
+      "response_bytes": 2225
+    },
+    {
+      "citations": 1,
+      "content_bytes": 0,
+      "items": 1,
+      "response_bytes": 2235
+    },
+    {
+      "citations": 1,
+      "content_bytes": 0,
+      "items": 1,
+      "response_bytes": 2256
+    },
+    {
+      "citations": 1,
+      "content_bytes": 0,
+      "items": 1,
+      "response_bytes": 2226
+    },
+    {
+      "citations": 0,
+      "content_bytes": 0,
+      "items": 0,
+      "response_bytes": 1448
+    },
+    {
+      "citations": 1,
+      "content_bytes": 0,
+      "items": 1,
+      "response_bytes": 2306
+    },
+    {
+      "citations": 0,
+      "content_bytes": 0,
+      "items": 0,
+      "response_bytes": 1413
+    },
+    {
+      "citations": 0,
+      "content_bytes": 0,
+      "items": 0,
+      "response_bytes": 1413
+    },
+    {
+      "citations": 0,
+      "content_bytes": 0,
+      "items": 0,
+      "response_bytes": 1413
+    },
+    {
+      "citations": 0,
+      "content_bytes": 0,
+      "items": 0,
+      "response_bytes": 1413
+    },
+    {
+      "citations": 0,
+      "content_bytes": 0,
+      "items": 0,
+      "response_bytes": 1413
+    },
+    {
+      "citations": 0,
+      "content_bytes": 0,
+      "items": 0,
+      "response_bytes": 1413
+    }
+  ],
+  "budget_identity_hash": "1c358a2883700c5ce7a16752e4f61c6139ce7b77e874f628c1af3d5ac4f71c19",
+  "budget_citation_hash": "c3a51d07d7c7dfa73f546dbd2d217dc17948ce83ab941864b1377f5fa0c152e7",
+  "context_digest_version": "context-digest-v1",
+  "context_continuity_version": "context-continuity-v1",
+  "context_digest_hash": "524d684f71f1b34ee7adbec1013c274a916aeee49f4371799fcbad6899c092a3",
+  "continuity_outcomes": [
+    "issued",
+    "unchanged",
+    "changed",
+    "expired",
+    "unavailable"
+  ],
+  "continuity_checked": true
+}

@@ -12,8 +12,9 @@ type CompileFanoutRequest struct {
 	SectionIDs              []string
 }
 type CompileChildResult struct {
-	ID, Status, Error string
-	SourceIDs         []string
+	ID, RunID, ParentRunID, Status, Result, Error   string
+	PlanVersion, CapabilityDigest, ProjectionDigest string
+	SourceIDs                                       []string
 }
 type CompileVoteResult struct {
 	Approved    bool

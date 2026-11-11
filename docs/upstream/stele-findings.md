@@ -117,8 +117,70 @@ Danny 没有增加本地 reference store、路径重写或替代写入路径。�
 - **受影响任务：** OpenSpec `knowledge-compilation-workflow` 任务 `5.4` 和任务 `5.5` 的 STELE-005 阻塞已解除。
 - **解除条件：** 已满足。Danny 没有加入 provenance ID 重写、禁用 provenance、跳过治理或本地 reference store workaround。
 
-## 未解决的问题
+### STELE-006：公开 Provider route gate 拒绝已声明的 turns/retrieve 路由
 
-以下问题仍会阻塞依赖它们的 Danny 任务。未满足解除条件之前，不得加入本地 workaround。
+- **状态：** `fixed-upstream`
 
-当前没有未解决的 Stele finding。
+- **受影响版本：** `github.com/FelixSeptem/stele v0.0.0-20261019065620-7ffd30f9e635`（commit `7ffd30f9e635d4740a5f7585f04f4b529746dede`）
+- **复现环境：** 使用 exact pinned module source 构建 `cmd/stele`，连接 Docker PostgreSQL 18.6 的全新 `stele_pinned_7ffd` 数据库，设置 `STELE_PROVIDER_ENABLED=true`、`STELE_PROVIDER_SCHEMA_VERSIONS=provider-v1`，通过 pinned `scripts/stele-bootstrap-smoke.ps1` 创建精确 scope 的 runtime principal 和 `memory-reference-v1` disclosure grant，再运行 Danny `go run ./cmd/runtime-probe stele-smoke`。
+- **确定性复现步骤：** bootstrap smoke 的 health、migration、principal、grant、event ingest/replay 均通过；随后 Danny 先调用 `POST /v1/provider/runtime` 成功，再调用文档要求的 `POST /v1/provider/turns`，收到 HTTP 403，响应 category/code 为 `scope/disclosure_denied`。同一次运行中 `POST /v1/provider/retrieve` 也收到 HTTP 403 `disclosure_denied`；`POST /v1/provider/events` 的同 key replay 返回原 event 结果并通过。
+- **预期行为：** 已拥有 exact-scope disclosure grant 的 public runtime principal 应能调用 OpenAPI 声明的 `/v1/provider/turns` 和 `/v1/provider/retrieve`，由 route handler 继续执行 turn/retrieval 的 scope、profile 和 response-mode 检查；不应在公共 route gate 阶段被拒绝。
+- **实际行为：** pinned `internal/app/disclosure_routes.go` 的 `disclosureRouteGate` allowlist 包含 `/v1/provider/runtime`、`/v1/provider/context`、`/v1/provider/events` 等路径，但遗漏 `/v1/provider/turns` 和 `/v1/provider/retrieve`。服务在业务 handler 前统一返回 403 `disclosure_denied`，导致 Danny 无法取得 server-issued turn，也无法完成 memory/reference/compilation exact-path retrieval。
+- **证据：** `testdata/runtimeprobe/stele-7ffd-live.evidence.json`、`docs/stele-context-evidence.md`、pinned source `internal/app/disclosure_routes.go` 和脱敏 Danny smoke 输出。证据不包含 credential、Authorization header、原始 context body 或无界 provider payload。
+- **受影响任务：** OpenSpec `runtime-context-ownership-boundary` 任务 `1.4`、`6.1`、`6.2`、`6.3`、`6.5`、`7.3`；依赖这些任务的 `8.2`、`8.3` 也不能完成。
+- **修复版本：** `github.com/FelixSeptem/stele v0.0.0-20261024024237-b63151c0464d`（commit `b63151c0464dd49379cc9324eecc19e56d1866a1`，fix commit `6d8983099147d79b432575347a1dfdf2abaf7fe7`）。该版本将 turns/retrieve 纳入 public disclosure route gate；新 pin PostgreSQL smoke 确认 retrieve route 可进入 handler，原始 403 已消失。完整 turn/context 和 exact-path acceptance 另受 STELE-007 及后续验收影响。
+- **解除条件：** 本条 route gate 缺陷已修复；未将完整 context capability 标为 verified。Danny 不加入 route fallback、绕过 disclosure 或改用未声明的 native endpoint。
+
+## 曾经未解决的问题及复核状态
+
+以下条目保留原始失败证据；当前阻塞状态以每条最新复核结论为准。
+
+### STELE-007：公开 Provider turns 路由对符合 OpenAPI 的请求返回 operation_failed
+
+- **状态：** `fixed-upstream`
+- **受影响版本：** `github.com/FelixSeptem/stele v0.0.0-20261024024237-b63151c0464d`（commit `b63151c0464dd49379cc9324eecc19e56d1866a1`，包含修复 STELE-006 的 `6d8983099147d79b432575347a1dfdf2abaf7fe7`）
+- **复现环境：** exact module-cache source 构建的 Stele API/worker，Docker PostgreSQL 18.6 全新数据库 `stele_pinned_b631`，全新 scope `danny-live-b631/runtime-context/acceptance`，使用文档 bootstrap smoke 生成的 public runtime credential 和 `memory-reference-v1` exact-scope grant。
+- **确定性复现步骤：** 初始化 `/v1/provider/runtime` 获得 server binding/session 后，使用同一 credential 和绑定调用 `POST /v1/provider/turns`，body 仅含 OpenAPI 声明的 `metadata` 与 `input.query`，得到 HTTP 400 `validation/operation_failed`。加入 `context_budget`、`idempotency_key` 或省略这些可选字段均得到相同结果。Danny 修正 body 不再发送 OpenAPI 未声明的 `session_id` 后仍可复现。服务日志确认请求进入 `/v1/provider/turns` handler；错误响应只给出通用 `provider operation failed`，当前无法从公开错误中获得更细原因。同一 smoke 中 memory append/retrieve、restart context、events idempotency 通过；turn-bound context 和完整 references/compilation acceptance 未通过。
+- **预期行为：** 符合 OpenAPI 的 `ProviderTurnRequest` 在有效 runtime binding、session 和 exact-scope disclosure grant 下应创建 server-issued turn 并返回 `turn_id`、`session_id`、disclosure mode 与 context evidence。
+- **实际行为：** 已通过 route gate，但 turn operation 返回 HTTP 400 `operation_failed`，无 server-issued turn，无法继续 turn-bound context continuity 验收。
+- **证据：** `testdata/runtimeprobe/stele-b631-live.evidence.json`、`docs/stele-context-evidence.md`、b631 pin 的 `openapi/spec.go` 和 `internal/app/provider_http.go`。Evidence 不含 credential、Authorization header 或原始 context body。
+- **受影响任务：** OpenSpec `runtime-context-ownership-boundary` 任务 `1.4`、`6.1`、`6.2`、`6.3`、`7.3`，以及依赖完整 exit gate 的 `8.2`、`8.3`。`6.5` 还需独立完成 exact-path durable reference/compilation 验收。
+- **解除条件：** 已由后续上游修复和下述全新 PostgreSQL/pgvector 验证满足。Danny 未加入兼容性猜测、绕过 grant 或本地 turn 替代。
+
+#### `8ae6028` 回归复核（2026-10-24）
+
+- **复核 pin：** Stele `8ae6028d68fd0ff672e40a8b7e12017aec779aa6`，模块版本仍为 `v0.0.0-20261024024237-b63151c0464d`；Danny 依赖未更新。
+- **复核环境：** 全新 PostgreSQL 数据库 `stele_live_8ae6028`、全新 scope `danny-live-8ae6028/runtime-context/acceptance`、最新 `cmd/stele` API/worker、官方 bootstrap smoke 创建的全新 public runtime credential 和 exact-scope `memory-reference-v1` grant。
+- **新增修复覆盖：** 最新提交把 runtime binding 与 server-owned `memory_session_runs` 的创建放入 PostgreSQL 事务；数据库复核确认 runtime binding 和 active session 均已存在。
+- **原始 smoke 结果：** `POST /v1/provider/turns` 仍返回 HTTP 400 `validation/operation_failed`；请求已通过 route gate，且服务日志显示进入 turns handler。失败后数据库 `memory_session_turns` 仍为零，无法取得 server-issued `turn_id`，因此 turn-bound context/continuity 不能继续验收。
+- **同期结果：** `/v1/provider/retrieve`、events idempotency、restart context 通过；references 和 compilation exact-path 在本次运行中仍未通过，不能替代完整验收证据。
+- **证据：** 本次脱敏 smoke 输出已保存为 `testdata/runtimeprobe/stele-8ae6028-live.evidence.json`；未提交 credential、原始 provider body 或日志。此前固定证据仍为 `testdata/runtimeprobe/stele-b631-live.evidence.json`。本次结果足以确认 `STELE-007` 在 `8ae6028` 仍为 `blocked-upstream`。
+
+#### `09e51a7` 回归复核（2026-10-24）
+
+- **复核 pin：** Stele `09e51a749be2778ce238e05f05675754e946332c`（`fix(memory): allow provider turns without conversation id`）；模块版本仍为 `v0.0.0-20261024024237-b63151c0464d`，Danny 依赖当时未更新。
+- **复核环境：** 全新 PostgreSQL 数据库 `stele_live_09e51a7`、全新 scope `danny-live-09e51a7/runtime-context/acceptance`、最新 `cmd/stele` API/worker、官方 bootstrap smoke 创建的全新 public runtime credential 和 exact-scope `memory-reference-v1` grant。
+- **新增修复覆盖：** runtime binding attribution 现在允许省略 `conversation_id`；这与 Danny 正常 runtime 初始化的调用形态一致。数据库复核确认 runtime session、runtime binding 已持久化，且正常 binding 的 `conversation_id` 为空。
+- **原始 smoke 结果：** 正常的无 `conversation_id` 请求仍使 `POST /v1/provider/turns` 返回 HTTP 400 `validation/operation_failed`。失败后 `memory_session_turns` 仍为零，无法取得 server-issued `turn_id`。在相同 scope 中显式设置非空 `conversation_id` 的对照 binding 调用相同 public endpoint 也返回 HTTP 400，因此失败并非仅由 Danny 省略该可选字段导致。
+- **同期结果：** `/v1/provider/retrieve`、events idempotency、restart context 通过；references 和 compilation exact-path 仍未通过，不能替代完整验收证据。
+- **证据：** 脱敏 smoke 输出保存在 `testdata/runtimeprobe/stele-09e51a7-live.evidence.json`；未提交 credential、Authorization header、原始 provider body 或服务日志。本次复核确认 `STELE-007` 在 `09e51a7` 仍为 `blocked-upstream`。
+
+#### `f38016e` 修复复核（2026-10-25）
+
+- **修复 pin：** `github.com/FelixSeptem/stele v0.0.0-20261025080141-f38016ec0cba`；turn/session 修复来自 `4db6ce8`、`09e51a7`，PostgreSQL continuity 修复来自 `f81f920` 和 `f186f15`。
+- **复现环境：** 官方 `scripts/stele-provider-context-verify.ps1` 创建随机隔离 Compose 项目、全新 PostgreSQL 18 + pgvector 数据库和新 scope，使用该 pin 的镜像完成 initial 与 API/worker restart 两阶段验证，结束后清理自有资源。
+- **结果：** Provider context、durable references、runtime feedback projection 三组 assurance 在 initial/restart 均通过；覆盖 turn/context continuity、governance completion、durable source labels、non-root exact-path retrieve、reference replay/conflict 与 restart identity。
+- **证据：** `testdata/runtimeprobe/stele-f38016-live.evidence.json`、`stele-f38016-reference.evidence.json`、`stele-f38016-projection.evidence.json` 及各自 `.initial.json` 文件。报告包含源码 revision 和镜像 digest，不含 credential 或原始 provider payload。
+- **当前结论：** STELE-007 不再阻塞 Stele live context/retrieve acceptance；完整提案仍须满足其余 Baymax、Danny durable projection 和 OpenSpec exit criteria。
+
+#### Danny `f38016e` 端到端复核（2026-10-26）
+
+- **复核环境：** 随机隔离 Docker Compose 项目、全新 PostgreSQL 18 + pgvector 数据库、`f38016e` 镜像和 Stele 官方 bootstrap 创建的精确 scope runtime credential。
+- **结果：** Danny `stele-smoke` 的 `context`、`memory`、`references`、`compilation`、`restart` 和 `idempotent` 六项 capability 全部为 `passed`。context 记录 server-issued `turn_id`、issue/compare continuity 结果以及独立 source/application digest；references 的 task/run exact-path retrieval 均为 `true`；compilation replay 保留同一 event ID；restart 和幂等重放均通过。
+- **证据：** `testdata/runtimeprobe/stele-f38016-danny-smoke.evidence.json`。报告不含 credential、Authorization header 或无界 provider payload；运行结束后隔离容器、卷和临时 credential 已清理。
+- **适配器说明：** Stele governance 是异步的，Danny `retrieveReference` 在同一个 retrieve body/idempotency key 下执行有界重试，直到 canonical memory 可见；不会重写 path、重复写 event 或用本地 reference store 替代 Stele。
+- **当前结论：** STELE-007 的原始 turn/context 缺口和后续 Danny live smoke 均已复核通过；Stele context、reference、compilation 和 restart acceptance 不再是当前提案的阻塞项。剩余未完成项是 Baymax/OpenAI-compatible live evidence、assembly ownership cleanup 和 scheduled projection delivery。
+
+## 当前集成 pin
+
+Danny 的 provider/context 适配器当前固定到 `github.com/FelixSeptem/stele v0.0.0-20261025080141-f38016ec0cba`（commit `f38016ec0cbafcd6877e2f66ee1da44ea8e4b057`）。该 pin 已通过 Stele 官方 fresh PostgreSQL/pgvector initial/restart assurance，以及 Danny 独立端到端 smoke 的 context、memory、task/run reference、compilation、restart 和 idempotency 验证；STELE-007 已解除。详情见 `docs/stele-context-evidence.md` 和 `testdata/runtimeprobe/stele-f38016-*.evidence.json`。

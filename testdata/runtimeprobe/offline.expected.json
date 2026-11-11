@@ -1,6 +1,6 @@
 {
   "schema_version": "runtime-probe.v1",
-  "baymax_version": "v0.0.0-20261003094000-553e07625efb",
+  "baymax_version": "v0.0.0-20261103091945-d2e08cd6dc8c",
   "stele_version": "unconfigured",
   "events": [
     {"sequence": 1, "id": "offline:run:parent", "kind": "parent", "correlation_id": "offline:run", "capability": "run", "status": "passed", "at": "1970-01-01T00:00:00Z"},

@@ -7,7 +7,6 @@ import (
 	"github.com/FelixSeptem/baymax/orchestration/teams"
 	"github.com/FelixSeptem/danny/internal/context/assembly"
 	"github.com/FelixSeptem/danny/internal/knowledge"
-	"github.com/FelixSeptem/danny/internal/runtimeprobe"
 )
 
 type CompileExecutor struct{ client *Client }
@@ -22,19 +21,23 @@ func (e *CompileExecutor) Fanout(ctx context.Context, request knowledge.CompileF
 	if err != nil {
 		return nil, err
 	}
-	if _, err := e.client.ContextAssembly(ctx, runtimeprobe.ProbeRequest{CorrelationID: request.RunID, Input: "compile sections", Capability: request.CapabilityDigest}); err != nil {
+	descriptor, err := projectionDescriptor(projection, AuthorizedRequest{RunID: request.RunID, PlanDigest: "compile:" + request.RunID})
+	if err != nil {
 		return nil, err
 	}
 	results := make([]knowledge.CompileChildResult, 0, len(request.SectionIDs))
 	for _, sectionID := range request.SectionIDs {
-		out, err := e.client.Child(ctx, runtimeprobe.ProbeRequest{CorrelationID: request.RunID + ":" + sectionID, ParentID: request.RunID, Input: string(projection.Serialized) + "\nsection:" + sectionID, Capability: request.CapabilityDigest})
-		status := "succeeded"
-		if err != nil || len(out.Events) == 0 || out.Events[len(out.Events)-1].Status != runtimeprobe.StatusPassed {
+		runID := request.RunID + ":child:" + sectionID
+		out, err := e.client.RunChildAuthorized(ctx, AuthorizedRequest{RunID: runID, ParentRunID: request.RunID, CorrelationID: request.RunID + ":" + sectionID, PlanVersion: "compile.v1", PlanDigest: "compile:" + request.RunID, CapabilityDigest: request.CapabilityDigest, ProjectionDigest: projection.Digest, Role: string(assembly.RoleSectionAnalyst), PerChildBudget: 1000, AggregationLimit: len(request.SectionIDs), Input: string(projection.Serialized) + "\nsection:" + sectionID, HostContextProjection: &descriptor, HostContextResolver: referenceProjectionResolver{}})
+		status := out.Terminal.Status
+		if status == "" {
 			status = "failed"
 		}
-		child := knowledge.CompileChildResult{ID: sectionID, Status: status, SourceIDs: []string{sectionID}}
+		child := knowledge.CompileChildResult{ID: sectionID, RunID: runID, ParentRunID: request.RunID, Status: status, Result: out.Terminal.Result, PlanVersion: "compile.v1", CapabilityDigest: request.CapabilityDigest, ProjectionDigest: projection.Digest, SourceIDs: []string{sectionID}}
 		if err != nil {
 			child.Error = err.Error()
+		} else if out.Terminal.FailureClass != "" && status != "succeeded" {
+			child.Error = out.Terminal.FailureClass
 		}
 		results = append(results, child)
 	}
@@ -53,33 +56,56 @@ func (e *CompileExecutor) Aggregate(ctx context.Context, children []knowledge.Co
 	if e == nil || e.client == nil {
 		return ErrAuthorizedRequest
 	}
-	engine := teams.New()
-	tasks := make([]teams.Task, 0, len(children))
-	for _, child := range children {
-		current := child
-		tasks = append(tasks, teams.Task{TaskID: current.ID, AgentID: current.ID, Role: teams.RoleWorker, Target: teams.TaskTargetLocal, Runner: teams.TaskRunnerFunc(func(context.Context, teams.Task) (teams.TaskResult, error) {
-			if current.Status != "succeeded" {
-				return teams.TaskResult{}, fmt.Errorf("child %s failed", current.ID)
-			}
-			return teams.TaskResult{Output: current.ID}, nil
-		})})
+	team, err := compileTeamRequest(children, teams.StrategyParallel)
+	if err != nil {
+		return err
 	}
-	_, err := engine.Run(ctx, teams.Plan{RunID: "compile", TeamID: "compile:parallel", Strategy: teams.StrategyParallel, Tasks: tasks})
+	_, err = e.client.RunTeamAuthorized(ctx, team)
 	return err
 }
 
 func (e *CompileExecutor) Vote(ctx context.Context, children []knowledge.CompileChildResult) (knowledge.CompileVoteResult, error) {
-	engine := teams.New()
-	tasks := make([]teams.Task, 0, len(children))
-	for _, child := range children {
-		current := child
-		tasks = append(tasks, teams.Task{TaskID: current.ID, AgentID: current.ID, Role: teams.RoleWorker, Target: teams.TaskTargetLocal, Runner: teams.TaskRunnerFunc(func(context.Context, teams.Task) (teams.TaskResult, error) {
-			return teams.TaskResult{Vote: "approve", Output: current.ID}, nil
-		})})
+	if e == nil || e.client == nil {
+		return knowledge.CompileVoteResult{}, ErrAuthorizedRequest
 	}
-	result, err := engine.Run(ctx, teams.Plan{RunID: "compile", TeamID: "compile:vote", Strategy: teams.StrategyVote, VoteTieBreak: teams.VoteTieBreakFirstTaskID, Tasks: tasks})
+	team, err := compileTeamRequest(children, teams.StrategyVote)
 	if err != nil {
 		return knowledge.CompileVoteResult{}, err
 	}
-	return knowledge.CompileVoteResult{Approved: result.WinnerVote != "reject"}, nil
+	result, err := e.client.RunTeamAuthorized(ctx, team)
+	if err != nil {
+		return knowledge.CompileVoteResult{}, err
+	}
+	evidence := make([]string, 0, len(result.Members))
+	for _, member := range result.Members {
+		evidence = append(evidence, member.RunID)
+	}
+	return knowledge.CompileVoteResult{Approved: result.WinnerVote == "approve", EvidenceIDs: evidence, Reason: result.WinnerVote}, nil
+}
+
+func compileTeamRequest(children []knowledge.CompileChildResult, strategy teams.Strategy) (TeamRequest, error) {
+	if len(children) == 0 || len(children) > 8 {
+		return TeamRequest{}, ErrAuthorizedRequest
+	}
+	parent := children[0].ParentRunID
+	planVersion, capability, projection := children[0].PlanVersion, children[0].CapabilityDigest, children[0].ProjectionDigest
+	if parent == "" || planVersion == "" || capability == "" || projection == "" {
+		return TeamRequest{}, ErrAuthorizedRequest
+	}
+	members := make([]TeamMember, 0, len(children))
+	for _, child := range children {
+		if child.ID == "" || child.RunID == "" || child.ParentRunID != parent || child.Status != "succeeded" || child.PlanVersion != planVersion || child.CapabilityDigest != capability || child.ProjectionDigest != projection {
+			return TeamRequest{}, fmt.Errorf("child %q cannot participate in compilation team", child.ID)
+		}
+		input := "review section " + child.ID + " result: " + child.Result
+		if strategy == teams.StrategyVote {
+			input = "Return exactly approve or reject after reviewing section " + child.ID + " result: " + child.Result
+		}
+		members = append(members, TeamMember{ID: child.ID, Role: "worker", Input: input})
+	}
+	name := "parallel"
+	if strategy == teams.StrategyVote {
+		name = "vote"
+	}
+	return TeamRequest{RunID: parent, TeamID: parent + ":compile:" + name, CorrelationID: parent + ":compile:" + name, PlanVersion: planVersion, PlanDigest: "compile:" + parent, CapabilityDigest: capability, ProjectionDigest: projection, WriteScopeDigest: "none", EffectNamespace: parent + ":compile-effects", Strategy: strategy, VoteTieBreak: teams.VoteTieBreakFirstTaskID, Members: members}, nil
 }

@@ -66,8 +66,8 @@ func LoadFromEnv(lookup func(string) (string, bool)) (Config, error) {
 	return Config{
 		ModelEndpoint:     get("DANNY_MODEL_ENDPOINT", ""),
 		ModelName:         get("DANNY_MODEL_NAME", ""),
-		BaymaxVersion:     get("DANNY_BAYMAX_VERSION", "v0.0.0-20261003094000-553e07625efb"),
-		SteleVersion:      get("DANNY_STELE_VERSION", "v0.0.0-20261007033528-a556ac0ddacc"),
+		BaymaxVersion:     get("DANNY_BAYMAX_VERSION", "v0.0.0-20261103091945-d2e08cd6dc8c"),
+		SteleVersion:      get("DANNY_STELE_VERSION", "v0.0.0-20261025080141-f38016ec0cba"),
 		StorageDriver:     strings.ToLower(get("DANNY_STORAGE_DRIVER", "sqlite")),
 		DatabaseURL:       get("DANNY_DATABASE_URL", "data/danny.db"),
 		DataDir:           get("DANNY_DATA_DIR", "data"),

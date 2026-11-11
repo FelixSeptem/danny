@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"github.com/FelixSeptem/danny/internal/runtimeboundary"
 )
 
 func TestPoliciesHaveDistinctCapabilitiesAndScopes(t *testing.T) {
@@ -39,15 +41,31 @@ func TestPlannerProducesDeterministicPlansAndRejectsUnsupportedModes(t *testing.
 		t.Fatalf("direct plans differ or wrong mode: %#v %#v", one, two)
 	}
 	profile.Parallelism, profile.Complexity, profile.Budget = 4, 6, 4000
-	fanout, err := planner.Plan(context.Background(), profile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if fanout.Mode != ModeSubagentFanout || fanout.ChildLimit == 0 || fanout.PerChildBudget == 0 {
-		t.Fatalf("fanout plan incomplete: %#v", fanout)
+	if _, err := planner.Plan(context.Background(), profile); !errors.Is(err, ErrUnsupportedMode) {
+		t.Fatalf("unverified fanout capability error = %v", err)
 	}
 	if _, err := planner.PlanMode(context.Background(), profile, ModeTeamParallel); !errors.Is(err, ErrUnsupportedMode) {
 		t.Fatalf("unsupported mode error = %v", err)
+	}
+}
+
+func TestPlannerSelectsFanoutOnlyWhenManifestVerifiesIt(t *testing.T) {
+	manifest := runtimeboundary.DefaultCapabilityManifest()
+	for i := range manifest.Capabilities {
+		if manifest.Capabilities[i].Form == runtimeboundary.FormSubagent {
+			manifest.Capabilities[i].Status = runtimeboundary.CapabilityVerified
+			manifest.Capabilities[i].Reason = "test-only complete contract fixture"
+		}
+	}
+	manifest = runtimeboundary.NewCapabilityManifest(manifest.Capabilities)
+	planner := NewPlannerWithManifest("planner.v1", manifest)
+	profile := TaskProfile{Objective: "split", Complexity: 5, Parallelism: 4, Budget: 4000}
+	plan, err := planner.Plan(context.Background(), profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Mode != ModeSubagentFanout || plan.ChildLimit != 4 || plan.PerChildBudget != 1000 || plan.CapabilityDigest != manifest.Digest {
+		t.Fatalf("verified fanout plan = %#v", plan)
 	}
 }
 
@@ -152,7 +170,14 @@ func TestUnauthorizedToolReturnsPolicyViolationEvent(t *testing.T) {
 }
 
 func TestPlannerNormalizesDependencyOrderAndBoundsFanout(t *testing.T) {
-	planner := NewPlanner("planner.v1")
+	manifest := runtimeboundary.DefaultCapabilityManifest()
+	for i := range manifest.Capabilities {
+		if manifest.Capabilities[i].Form == runtimeboundary.FormSubagent {
+			manifest.Capabilities[i].Status = runtimeboundary.CapabilityVerified
+			manifest.Capabilities[i].Reason = "test-only complete contract fixture"
+		}
+	}
+	planner := NewPlannerWithManifest("planner.v1", runtimeboundary.NewCapabilityManifest(manifest.Capabilities))
 	a, err := planner.Plan(context.Background(), TaskProfile{Objective: "split", Complexity: 5, Parallelism: 99, Budget: 1000, Dependencies: []string{"b", "a"}})
 	if err != nil {
 		t.Fatal(err)
@@ -209,7 +234,14 @@ func TestAgentDirectAdmissionCorrelatesPlanAndProjection(t *testing.T) {
 
 func TestAgentFanoutInheritsCapabilityDigestAndBoundsChildren(t *testing.T) {
 	exec := &fakeExecutor{outcome: ExecutionOutcome{Status: "succeeded", Result: "child"}}
-	agent := NewAgent(NewPlanner("planner.v1"), exec, NewMemoryEvidenceStore())
+	manifest := runtimeboundary.DefaultCapabilityManifest()
+	for i := range manifest.Capabilities {
+		if manifest.Capabilities[i].Form == runtimeboundary.FormSubagent {
+			manifest.Capabilities[i].Status = runtimeboundary.CapabilityVerified
+			manifest.Capabilities[i].Reason = "test-only complete contract fixture"
+		}
+	}
+	agent := NewAgent(NewPlannerWithManifest("planner.v1", runtimeboundary.NewCapabilityManifest(manifest.Capabilities)), exec, NewMemoryEvidenceStore())
 	result, err := agent.Run(context.Background(), AgentRequest{RunID: "run-2", CorrelationID: "corr-2", Policy: DefaultPolicy(PolicyRead), Profile: TaskProfile{Objective: "fan", Complexity: 6, Parallelism: 4, Budget: 4000}, ProjectionDigest: "projection-2"})
 	if err != nil {
 		t.Fatal(err)
@@ -220,6 +252,9 @@ func TestAgentFanoutInheritsCapabilityDigestAndBoundsChildren(t *testing.T) {
 	for _, child := range exec.children {
 		if child.CapabilityDigest != result.Plan.CapabilityDigest {
 			t.Fatalf("child authority expanded: %#v", child)
+		}
+		if child.Role != "subagent" || child.PerChildBudget != result.Plan.PerChildBudget || child.AggregationLimit != result.Plan.AggregationLimit {
+			t.Fatalf("child lost native assignment limits: %#v plan=%#v", child, result.Plan)
 		}
 	}
 }

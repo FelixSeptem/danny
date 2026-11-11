@@ -35,9 +35,23 @@ go.work.sum
 # Local implementation worktrees
 .worktrees/
 
+# WorkBuddy session data (local only, not part of the repository)
+.workbuddy/
+
 # Local build, analysis, parser test, and debug artifacts
 .go-cache/
 .tmp/
 debug.log
 parser_service/__pycache__/
 parser_service/.test-work/
+
+# Per-run cache directories (legacy pattern; use the shared cache dir instead)
+.gocache/
+.gocache-*/
+.gomodcache/
+.gomodcache-*/
+.golangci-cache/
+.golangci-cache-*/
+.tmp-go-cache*/
+.tmp-golangci-cache*/
+.tmp-gocache*/

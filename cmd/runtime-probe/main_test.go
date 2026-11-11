@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/FelixSeptem/danny/internal/context/stele"
 	"github.com/FelixSeptem/danny/internal/runtimeprobe"
 )
 
@@ -61,6 +62,61 @@ func TestLiveSmokeSkipsWithoutExplicitConfiguration(t *testing.T) {
 	}
 }
 
+func TestSteleContextProjectionUsesTurnBoundContract(t *testing.T) {
+	var gotInputs []map[string]any
+	contextCalls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/v1/provider/context" {
+			var body map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			gotInput, _ := body["input"].(map[string]any)
+			gotInputs = append(gotInputs, gotInput)
+			contextCalls++
+			continuity := `{"contract_version":"context-continuity-v1","read_semantics":"fresh","outcome":"issued","reference":"ctxc_0123456789abcdef0123456789abcdef","expires_at":"2026-10-22T00:00:00Z"}`
+			if contextCalls == 2 {
+				continuity = `{"contract_version":"context-continuity-v1","read_semantics":"fresh_compare","outcome":"unchanged","reference":"ctxc_0123456789abcdef0123456789abcdef","expires_at":"2026-10-22T00:00:00Z"}`
+			}
+			requestID := "stele:context:projection"
+			if contextCalls == 2 {
+				requestID += ":compare"
+			}
+			writeProviderContextFixture(t, w, []byte(`{"result":{"turn_id":"turn-server-1","response_mode":"reference_only","context_digest":{"contract_version":"context-turn-digest-v1","algorithm":"sha-256","canonicalization_version":"context-turn-canonical-v1","selection_policy_version":"context-selection-v1","selection_policy_fingerprint":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","value":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"continuity":`+continuity+`,"disclosure":{"profile":"memory-reference-v1","policy_version":"context-disclosure-v1","projection_intent":"task_context","source_metadata_version":"source-metadata-v1"},"budget_accounting":{"contract_version":"context-budget-v1","packing_policy_version":"context-packing-v1","requested":{"max_items":4},"effective":{"max_items":4},"usage":{"items":0},"selection":{"outcome":"empty"}},"profile":[],"recent_session":[],"recent_episodes":[],"relevant_summaries":[],"related_entities":[],"citations":[]}}`), requestID)
+			return
+		}
+		if r.URL.Path == "/v1/provider/turns" {
+			_, _ = w.Write([]byte(`{"result":{"turn_id":"turn-server-1"}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"binding_id":"binding-1","session_id":"session-1"}`))
+	}))
+	defer server.Close()
+	client, err := stele.NewClient(server.URL, server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.Tenant, client.Project, client.Namespace = "tenant", "project", "namespace"
+	client.BindingID, client.SessionID = "binding-1", "session-1"
+	out := steleContextProjection(context.Background(), client, runtimeprobe.ProbeRequest{CorrelationID: "stele:context", ParentID: "stele:context:parent", Input: "probe", Capability: "context"})
+	if err := (runtimeprobe.Bundle{SchemaVersion: runtimeprobe.EvidenceSchemaVersion, BaymaxVersion: "baymax", SteleVersion: stele.PinnedVersion, Events: out.Events}).Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if out.Events[1].Status != runtimeprobe.StatusPassed || out.Events[1].Payload["continuity"] != "issued" || out.Events[1].Payload["continuity_compare"] != "unchanged" || out.Events[1].Payload["turn_id"] != "turn-server-1" {
+		t.Fatalf("events=%#v", out.Events)
+	}
+	if len(gotInputs) != 2 || gotInputs[0]["turn_id"] != "turn-server-1" || gotInputs[0]["response_mode"] != "reference_only" {
+		t.Fatalf("inputs=%#v", gotInputs)
+	}
+	if gotInputs[0]["continuity"].(map[string]any)["mode"] != "issue" || gotInputs[0]["budget_limits"].(map[string]any)["max_citations"].(float64) != 8 {
+		t.Fatalf("inputs=%#v", gotInputs)
+	}
+	if gotInputs[1]["continuity"].(map[string]any)["mode"] != "compare" {
+		t.Fatalf("inputs=%#v", gotInputs)
+	}
+}
+
 func mustJSON(t *testing.T, value any) []byte {
 	t.Helper()
 	raw, err := json.Marshal(value)
@@ -68,4 +124,37 @@ func mustJSON(t *testing.T, value any) []byte {
 		t.Fatal(err)
 	}
 	return raw
+}
+
+func writeProviderContextFixture(t *testing.T, w http.ResponseWriter, raw []byte, requestID string) {
+	t.Helper()
+	var envelope map[string]any
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		t.Fatal(err)
+	}
+	result, ok := envelope["result"].(map[string]any)
+	if !ok {
+		t.Fatal("provider fixture result is not an object")
+	}
+	envelope["metadata"] = map[string]any{"request_id": requestID, "operation_id": "providerAssembleContext", "schema_version": "provider-v1"}
+	envelope["citations"] = result["citations"]
+	accounting, ok := result["budget_accounting"].(map[string]any)
+	if !ok {
+		t.Fatal("provider fixture budget accounting is not an object")
+	}
+	accounting["requested"] = map[string]any{"max_items": 4, "max_content_bytes": nil, "max_response_bytes": 16384, "max_citations": 8}
+	accounting["effective"] = map[string]any{"max_items": 4, "max_content_bytes": 16384, "max_response_bytes": 16384, "max_citations": 8}
+	accounting["usage"] = map[string]any{"items": 0, "content_bytes": 0, "response_bytes": 0, "citations": 0}
+	for i := 0; i < 4; i++ {
+		encoded, err := json.Marshal(envelope)
+		if err != nil {
+			t.Fatal(err)
+		}
+		accounting["usage"].(map[string]any)["response_bytes"] = len(encoded)
+	}
+	encoded, err := json.Marshal(envelope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = w.Write(encoded)
 }

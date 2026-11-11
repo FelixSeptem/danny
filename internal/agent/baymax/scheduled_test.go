@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/FelixSeptem/baymax/core/types"
+	"github.com/FelixSeptem/baymax/integration/fakes"
 	"github.com/FelixSeptem/baymax/orchestration/mailbox"
 	"github.com/FelixSeptem/baymax/orchestration/scheduler"
 )
@@ -108,5 +110,63 @@ func TestMailboxWorkerRequeuesHandlerFailureAndAcksSuccess(t *testing.T) {
 	stats, err := adapter.Mailbox.Stats(ctx)
 	if err != nil || stats.AckTotal != 1 {
 		t.Fatalf("stats=%#v err=%v", stats, err)
+	}
+}
+
+func TestAuthorizedMailboxContinuationUsesOneNativeAdmissionAndAcksSuccess(t *testing.T) {
+	client, err := New(fakes.NewModel([]fakes.ModelStep{{Response: types.ModelResponse{FinalAnswer: "mailbox result"}}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter := testSchedulerMailboxAdapter(t)
+	result, err := client.RunMailboxAuthorized(context.Background(), MailboxRequest{
+		Mailbox: adapter.Mailbox, ConsumerID: "mailbox-worker", Lease: time.Minute,
+		MessageID: "mailbox-message", IdempotencyKey: "mailbox-effect", RunID: "mailbox-run", ParentRunID: "parent-run", CausationID: "cause-1", CorrelationID: "mailbox-correlation",
+		AuthorityDigest: "cap-v1", PlanDigest: "plan-digest", WriteScope: "task", EffectNamespace: "effect:mailbox", Occurrence: "occurrence-1", ResourceLimit: 1,
+		PlanVersion: "plan-v1", CapabilityDigest: "cap-v1", ProjectionDigest: "projection-v1", Input: "execute mailbox command",
+	})
+	if err != nil || result.Execution.Terminal.Status != "succeeded" || result.Mailbox.LifecycleResult != "ack" {
+		t.Fatalf("mailbox result=%#v err=%v", result, err)
+	}
+	stats, err := adapter.Mailbox.Stats(context.Background())
+	if err != nil || stats.PublishedTotal != 1 || stats.AckTotal != 1 {
+		t.Fatalf("mailbox stats=%#v err=%v", stats, err)
+	}
+}
+
+func TestAuthorizedMailboxContinuationRequeuesFailedExecution(t *testing.T) {
+	client, err := New(fakes.NewModel([]fakes.ModelStep{{Err: errors.New("mailbox model failed")}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter := testSchedulerMailboxAdapter(t)
+	result, err := client.RunMailboxAuthorized(context.Background(), MailboxRequest{
+		Mailbox: adapter.Mailbox, ConsumerID: "mailbox-worker", Lease: time.Minute,
+		MessageID: "mailbox-failure", IdempotencyKey: "mailbox-failure-effect", RunID: "mailbox-failure-run", ParentRunID: "parent-run", CausationID: "cause-1", CorrelationID: "mailbox-failure-correlation",
+		AuthorityDigest: "cap-v1", PlanDigest: "plan-digest", WriteScope: "task", EffectNamespace: "effect:mailbox-failure", Occurrence: "occurrence-1", ResourceLimit: 1,
+		PlanVersion: "plan-v1", CapabilityDigest: "cap-v1", ProjectionDigest: "projection-v1", Input: "execute failing command",
+	})
+	if err == nil || result.Execution.Terminal.Status != "failed" || result.Mailbox.LifecycleResult != "retry" {
+		t.Fatalf("failed mailbox result=%#v err=%v", result, err)
+	}
+	stats, err := adapter.Mailbox.Stats(context.Background())
+	if err != nil || stats.RequeueTotal != 1 || stats.AckTotal != 0 {
+		t.Fatalf("mailbox failure stats=%#v err=%v", stats, err)
+	}
+}
+
+func TestAuthorizedScheduledCallerUsesOccurrenceAndCommonMailboxBoundary(t *testing.T) {
+	client, err := New(fakes.NewModel([]fakes.ModelStep{{Response: types.ModelResponse{FinalAnswer: "scheduled result"}}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter := testSchedulerMailboxAdapter(t)
+	command := scheduledCommand()
+	result, err := client.RunScheduledAuthorized(context.Background(), ScheduledAuthorizedRequest{
+		Adapter: adapter, WorkerID: "scheduler-worker", ConsumerID: "mailbox-worker", Lease: time.Minute,
+		Command: command, ParentRunID: "scheduled-parent", CausationID: "scheduled-cause", WriteScope: "task", Input: "scheduled instruction",
+	})
+	if err != nil || result.Execution.Terminal.Status != "succeeded" || result.Mailbox.Occurrence != command.OccurrenceKey || result.Mailbox.LifecycleResult != "ack" {
+		t.Fatalf("scheduled result=%#v err=%v", result, err)
 	}
 }

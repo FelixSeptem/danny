@@ -1,0 +1,231 @@
+{
+  "schema_version": "runtime-probe.v1",
+  "baymax_version": "v0.0.0-20261022053159-3d0ab5949790",
+  "stele_version": "v0.0.0-20261019065620-7ffd30f9e635",
+  "events": [
+    {
+      "sequence": 1,
+      "id": "stele:context:parent",
+      "kind": "parent",
+      "correlation_id": "stele:context",
+      "capability": "context",
+      "status": "failed-contract",
+      "at": "1970-01-01T00:00:00Z"
+    },
+    {
+      "sequence": 2,
+      "id": "stele:context:parent:context",
+      "kind": "context",
+      "parent_id": "stele:context:parent",
+      "correlation_id": "stele:context",
+      "capability": "context",
+      "status": "failed-contract",
+      "at": "1970-01-01T00:00:00.000000001Z",
+      "payload": {
+        "error": "stele /v1/provider/turns returned 403 Forbidden",
+        "error_code": "disclosure_denied",
+        "path": "/v1/provider/turns"
+      }
+    },
+    {
+      "sequence": 3,
+      "id": "stele:context:parent:context:terminal",
+      "kind": "terminal",
+      "parent_id": "stele:context:parent:context",
+      "correlation_id": "stele:context",
+      "capability": "context",
+      "status": "failed-contract",
+      "at": "1970-01-01T00:00:00.000000002Z"
+    },
+    {
+      "sequence": 4,
+      "id": "stele:memory:parent",
+      "kind": "parent",
+      "correlation_id": "stele:memory",
+      "capability": "memory",
+      "status": "failed-contract",
+      "at": "1970-01-01T00:00:00Z"
+    },
+    {
+      "sequence": 5,
+      "id": "stele:memory:parent:memory",
+      "kind": "memory",
+      "parent_id": "stele:memory:parent",
+      "correlation_id": "stele:memory",
+      "capability": "memory",
+      "status": "failed-contract",
+      "at": "1970-01-01T00:00:00.000000001Z",
+      "payload": {
+        "retrieve": "failed",
+        "retrieve_error": "stele /v1/provider/retrieve returned 403 Forbidden",
+        "retrieve_error_code": "disclosure_denied",
+        "retrieve_path": "/v1/provider/retrieve",
+        "write_path": "/v1/provider/events"
+      }
+    },
+    {
+      "sequence": 6,
+      "id": "stele:memory:parent:memory:terminal",
+      "kind": "terminal",
+      "parent_id": "stele:memory:parent:memory",
+      "correlation_id": "stele:memory",
+      "capability": "memory",
+      "status": "failed-contract",
+      "at": "1970-01-01T00:00:00.000000002Z"
+    },
+    {
+      "sequence": 7,
+      "id": "stele:references:parent",
+      "kind": "parent",
+      "correlation_id": "stele:references",
+      "capability": "references",
+      "status": "failed-contract",
+      "at": "1970-01-01T00:00:00Z"
+    },
+    {
+      "sequence": 8,
+      "id": "stele:references:parent:references",
+      "kind": "memory",
+      "parent_id": "stele:references:parent",
+      "correlation_id": "stele:references",
+      "capability": "references",
+      "status": "failed-contract",
+      "at": "1970-01-01T00:00:00.000000001Z",
+      "payload": {
+        "retrieve_error": "stele /v1/provider/retrieve returned 403 Forbidden",
+        "retrieve_error_code": "disclosure_denied",
+        "retrieve_path": "/v1/provider/retrieve",
+        "task_retrieved": "false",
+        "run_retrieved": "false"
+      }
+    },
+    {
+      "sequence": 9,
+      "id": "stele:references:parent:references:terminal",
+      "kind": "terminal",
+      "parent_id": "stele:references:parent:references",
+      "correlation_id": "stele:references",
+      "capability": "references",
+      "status": "failed-contract",
+      "at": "1970-01-01T00:00:00.000000002Z"
+    },
+    {
+      "sequence": 10,
+      "id": "stele:compilation:parent",
+      "kind": "parent",
+      "correlation_id": "stele:compilation",
+      "capability": "compilation",
+      "status": "failed-contract",
+      "at": "1970-01-01T00:00:00Z"
+    },
+    {
+      "sequence": 11,
+      "id": "stele:compilation:parent:compilation",
+      "kind": "memory",
+      "parent_id": "stele:compilation:parent",
+      "correlation_id": "stele:compilation",
+      "capability": "compilation",
+      "status": "failed-contract",
+      "at": "1970-01-01T00:00:00.000000001Z",
+      "payload": {
+        "first_event_id": "7cbad21e-3508-4887-a01d-6116c8cf7dd6",
+        "first_replayed": "true",
+        "lookup_error": "stele /v1/provider/retrieve returned 403 Forbidden",
+        "reference_found": "false",
+        "reference_path": "knowledge/generations/987654321",
+        "replay_event_id": "7cbad21e-3508-4887-a01d-6116c8cf7dd6",
+        "replayed": "true"
+      }
+    },
+    {
+      "sequence": 12,
+      "id": "stele:compilation:parent:compilation:terminal",
+      "kind": "terminal",
+      "parent_id": "stele:compilation:parent:compilation",
+      "correlation_id": "stele:compilation",
+      "capability": "compilation",
+      "status": "failed-contract",
+      "at": "1970-01-01T00:00:00.000000002Z"
+    },
+    {
+      "sequence": 13,
+      "id": "stele:restart:parent",
+      "kind": "parent",
+      "correlation_id": "stele:restart",
+      "capability": "restart",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00Z"
+    },
+    {
+      "sequence": 14,
+      "id": "stele:restart:parent:context",
+      "kind": "context",
+      "parent_id": "stele:restart:parent",
+      "correlation_id": "stele:restart",
+      "capability": "restart",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000001Z",
+      "payload": {
+        "path": "/v1/provider/context"
+      }
+    },
+    {
+      "sequence": 15,
+      "id": "stele:restart:parent:context:terminal",
+      "kind": "terminal",
+      "parent_id": "stele:restart:parent:context",
+      "correlation_id": "stele:restart",
+      "capability": "restart",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000002Z"
+    },
+    {
+      "sequence": 16,
+      "id": "stele:idempotent:parent",
+      "kind": "parent",
+      "correlation_id": "stele:idempotent",
+      "capability": "idempotent",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00Z"
+    },
+    {
+      "sequence": 17,
+      "id": "stele:idempotent:parent:memory:first",
+      "kind": "memory",
+      "parent_id": "stele:idempotent:parent",
+      "correlation_id": "stele:idempotent",
+      "capability": "idempotent",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000001Z",
+      "payload": {
+        "attempt": "first",
+        "path": "/v1/provider/events"
+      }
+    },
+    {
+      "sequence": 18,
+      "id": "stele:idempotent:parent:memory:replay",
+      "kind": "memory",
+      "parent_id": "stele:idempotent:parent",
+      "correlation_id": "stele:idempotent",
+      "capability": "idempotent",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000002Z",
+      "payload": {
+        "attempt": "replay",
+        "path": "/v1/provider/events",
+        "replayed": "true"
+      }
+    },
+    {
+      "sequence": 19,
+      "id": "stele:idempotent:parent:terminal",
+      "kind": "terminal",
+      "parent_id": "stele:idempotent:parent",
+      "correlation_id": "stele:idempotent",
+      "capability": "idempotent",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000003Z"
+    }
+  ]
+}

@@ -1,24 +1,38 @@
 package assembly
 
 import (
+	"bytes"
 	"errors"
 	"testing"
 )
 
-func TestProjectionCompactsHistoryButPreservesReferences(t *testing.T) {
+func TestProjectionRetainsOnlyRoleTrustAndReferenceFacts(t *testing.T) {
 	builder := NewBuilder(ProjectionLimits{MaxBytes: 450})
-	projection, err := builder.Build(ProjectionRequest{Role: RoleSectionAnalyst, Prefix: "policy-prefix", CapabilityDigest: "cap", Task: "analyze section", History: []string{"very long history entry one", "very long history entry two", "very long history entry three"}, References: []Reference{{ID: "source-1", Kind: "source", Locator: "doc.md#intro"}}})
+	projection, err := builder.Build(ProjectionRequest{
+		Role:             RoleCoordinator,
+		Prefix:           "policy-prefix",
+		CapabilityDigest: "cap",
+		Task:             "analyze section",
+		History:          []string{"source history must not enter the Danny projection"},
+		PrivateMemory:    "private memory must not enter the Danny projection",
+		References:       []Reference{{ID: "source-1", Kind: "source", Locator: "doc.md#intro"}},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(projection.Serialized) > 450 {
-		t.Fatalf("projection bytes = %d", len(projection.Serialized))
-	}
-	if len(projection.References) != 1 || projection.References[0].Locator != "doc.md#intro" {
+	if len(projection.References) != 1 || projection.References[0].Locator != "doc.md#intro" || projection.References[0].Trust != "untrusted" {
 		t.Fatalf("references lost: %#v", projection.References)
 	}
-	if projection.Handoff.Version != "handoff.v1" || projection.Budget.Compacted == false {
-		t.Fatalf("handoff/budget missing: %#v", projection)
+	for _, forbidden := range [][]byte{
+		[]byte("source history must not enter the Danny projection"),
+		[]byte("private memory must not enter the Danny projection"),
+		[]byte("handoff.v1"),
+		[]byte("max_bytes"),
+		[]byte("compacted"),
+	} {
+		if bytes.Contains(projection.Serialized, forbidden) {
+			t.Fatalf("Danny projection retained Baymax-owned material %q: %s", forbidden, projection.Serialized)
+		}
 	}
 }
 
@@ -29,12 +43,19 @@ func TestProjectionRejectsMissingCapabilityDigest(t *testing.T) {
 	}
 }
 
+func TestProjectionRejectsUndeclaredRole(t *testing.T) {
+	_, err := NewBuilder(ProjectionLimits{MaxBytes: 512}).Build(ProjectionRequest{Role: Role("untrusted_role"), Prefix: "prefix", CapabilityDigest: "cap"})
+	if !errors.Is(err, ErrProjectionInvalid) {
+		t.Fatalf("error = %v, want invalid projection role", err)
+	}
+}
+
 func TestProjectionMarksSourceReferencesAsUntrusted(t *testing.T) {
 	p, err := NewBuilder(ProjectionLimits{MaxBytes: 4096}).Build(ProjectionRequest{Role: RoleSectionAnalyst, Prefix: "prefix", CapabilityDigest: "cap", References: []Reference{{ID: "source-1", Kind: "source", Locator: "note.md"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(p.References) != 1 || !p.References[0].Untrusted || !p.Handoff.References[0].Untrusted {
+	if len(p.References) != 1 || !p.References[0].Untrusted || p.References[0].Trust != "untrusted" {
 		t.Fatalf("untrusted references = %#v", p.References)
 	}
 }
@@ -44,8 +65,8 @@ func TestRoleProjectionDoesNotExposeUnauthorizedFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.PrivateMemory != "" {
-		t.Fatalf("private memory leaked to citation validator: %#v", p)
+	if bytes.Contains(p.Serialized, []byte("secret memory")) {
+		t.Fatalf("private memory leaked: %s", p.Serialized)
 	}
 }
 
@@ -66,8 +87,8 @@ func TestEachRoleReceivesOnlyAuthorizedProjectionFields(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", tc.role, err)
 		}
-		if (len(p.History) > 0) != tc.history || (p.PrivateMemory != "") != tc.private {
-			t.Fatalf("%s fields history=%v private=%v", tc.role, len(p.History) > 0, p.PrivateMemory != "")
+		if bytes.Contains(p.Serialized, []byte("history")) || bytes.Contains(p.Serialized, []byte("private")) {
+			t.Fatalf("%s retained Baymax-owned fields: %s", tc.role, p.Serialized)
 		}
 	}
 }

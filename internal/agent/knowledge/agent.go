@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/FelixSeptem/danny/internal/runtimeboundary"
 )
 
 type PolicyKind string
@@ -255,9 +257,18 @@ type ExecutionPlan struct {
 	WriteScope                                                          int
 	CapabilityScope, ProjectionScope, ProjectionDigest, EffectNamespace string
 }
-type Planner struct{ Version string }
+type Planner struct {
+	Version  string
+	Manifest runtimeboundary.CapabilityManifest
+}
 
-func NewPlanner(version string) Planner { return Planner{Version: version} }
+func NewPlanner(version string) Planner {
+	return NewPlannerWithManifest(version, runtimeboundary.DefaultCapabilityManifest())
+}
+
+func NewPlannerWithManifest(version string, manifest runtimeboundary.CapabilityManifest) Planner {
+	return Planner{Version: version, Manifest: manifest}
+}
 func (p Planner) Plan(ctx context.Context, profile TaskProfile) (ExecutionPlan, error) {
 	return p.PlanMode(ctx, profile, "")
 }
@@ -275,14 +286,18 @@ func (p Planner) PlanMode(_ context.Context, profile TaskProfile, requested Exec
 			mode = ModeDirect
 		}
 	}
-	if mode != ModeDirect && mode != ModeSubagentFanout {
+	if mode != ModeDirect && mode != ModeSubagentFanout && mode != ModeTeamParallel && mode != ModeTeamVote && mode != ModeWorkflow && mode != ModeMailboxAsync && mode != ModeScheduled {
 		return ExecutionPlan{}, fmt.Errorf("%w: %s", ErrUnsupportedMode, mode)
+	}
+	form := runtimeboundary.ExecutionForm(mode)
+	if err := p.Manifest.Allows(form); err != nil {
+		return ExecutionPlan{}, fmt.Errorf("%w: %s: %v", ErrUnsupportedMode, mode, err)
 	}
 	profileRaw, _ := json.Marshal(profile)
 	profileSum := sha256.Sum256(profileRaw)
 	profileDigest := hex.EncodeToString(profileSum[:])
-	plan := ExecutionPlan{Version: p.Version, Mode: mode, ProfileDigest: profileDigest, CapabilityDigest: fmt.Sprintf("profile:%d:%d:%d", profile.Complexity, profile.WriteScope, profile.Budget), Budget: profile.Budget, WriteScope: profile.WriteScope, CapabilityScope: "profile", ProjectionScope: "authorized", EffectNamespace: "task"}
-	if mode == ModeDirect {
+	plan := ExecutionPlan{Version: p.Version, Mode: mode, ProfileDigest: profileDigest, CapabilityDigest: p.Manifest.Digest, Budget: profile.Budget, WriteScope: profile.WriteScope, CapabilityScope: "profile", ProjectionScope: "authorized", EffectNamespace: "task"}
+	if mode == ModeDirect || mode == ModeScheduled || mode == ModeMailboxAsync {
 		plan.Rationale = "low complexity or ordered execution"
 	} else {
 		plan.ChildLimit = profile.Parallelism
@@ -317,7 +332,11 @@ type Checkpoint struct {
 	PauseReason                                                        PauseReason
 	PreviousPlanVersion, ReplanReason                                  string
 }
-type ResumeRequest struct{ PlanVersion, PlanDigest, CapabilityDigest, ProjectionDigest, CurrentStep string }
+type ResumeRequest struct {
+	PlanVersion, PlanDigest, CapabilityDigest, ProjectionDigest, CurrentStep string
+	DecisionToken, IdempotencyKey                                            string
+	ProposedBudget                                                           *runtimeboundary.NativeBudget
+}
 
 func (c Checkpoint) ValidateResume(req ResumeRequest) error {
 	if c.PlanVersion != req.PlanVersion {
@@ -381,15 +400,28 @@ type ExecutionEvidence struct{ RunID, ParentRunID, ChildRunID, PlanVersion, Proj
 type ExecutionRequest struct {
 	RunID, ParentRunID, CorrelationID                           string
 	PlanVersion, PlanDigest, CapabilityDigest, ProjectionDigest string
+	Role                                                        string
+	PerChildBudget, AggregationLimit                            int
 	Input                                                       string
 	Policy                                                      Policy
 }
 
-type ExecutionOutcome struct{ Status, Result, FailureClass string }
+type ExecutionOutcome struct {
+	Status, Result, FailureClass string
+	NativeRunID                  string
+	CausationID                  string
+}
 
 type Executor interface {
 	Run(context.Context, ExecutionRequest) (ExecutionOutcome, error)
 	RunChild(context.Context, ExecutionRequest) (ExecutionOutcome, error)
+}
+
+// BoundedChildExecutor is the native orchestration boundary for a planned
+// fanout. Production executors implement this method so the product harness
+// does not own child admission, cancellation, or assignment scheduling.
+type BoundedChildExecutor interface {
+	RunChildren(context.Context, ExecutionRequest, int) ([]ExecutionOutcome, error)
 }
 
 type EvidenceStore interface {
@@ -436,20 +468,30 @@ func (a *Agent) Run(ctx context.Context, req AgentRequest) (AgentResult, error) 
 	}
 	plan.CapabilityDigest = req.Policy.CapabilityDigest()
 	plan.Digest = digestPlan(plan)
-	base := ExecutionRequest{RunID: req.RunID, ParentRunID: req.ParentRunID, CorrelationID: req.CorrelationID, PlanVersion: plan.Version, PlanDigest: plan.Digest, CapabilityDigest: plan.CapabilityDigest, ProjectionDigest: req.ProjectionDigest, Input: req.Profile.Objective, Policy: req.Policy}
+	base := ExecutionRequest{RunID: req.RunID, ParentRunID: req.ParentRunID, CorrelationID: req.CorrelationID, PlanVersion: plan.Version, PlanDigest: plan.Digest, CapabilityDigest: plan.CapabilityDigest, ProjectionDigest: req.ProjectionDigest, Role: "coordinator", PerChildBudget: plan.PerChildBudget, AggregationLimit: plan.AggregationLimit, Input: req.Profile.Objective, Policy: req.Policy}
 	outcome, err := a.executor.Run(ctx, base)
 	if err != nil {
 		return AgentResult{}, err
 	}
 	if plan.Mode == ModeSubagentFanout {
-		for i := 0; i < plan.ChildLimit; i++ {
-			child := base
-			child.RunID = fmt.Sprintf("%s:child:%d", req.RunID, i+1)
-			child.ParentRunID = req.RunID
-			if _, childErr := a.executor.RunChild(ctx, child); childErr != nil && err == nil {
-				err = childErr
+		if batcher, ok := a.executor.(BoundedChildExecutor); ok {
+			if _, batchErr := batcher.RunChildren(ctx, base, plan.ChildLimit); batchErr != nil {
+				return AgentResult{}, batchErr
+			}
+		} else {
+			for i := 0; i < plan.ChildLimit; i++ {
+				child := base
+				child.RunID = fmt.Sprintf("%s:child:%d", req.RunID, i+1)
+				child.ParentRunID = req.RunID
+				child.Role = "subagent"
+				if _, childErr := a.executor.RunChild(ctx, child); childErr != nil && err == nil {
+					err = childErr
+				}
 			}
 		}
+	}
+	if err != nil {
+		return AgentResult{}, err
 	}
 	evidence := ExecutionEvidence{RunID: req.RunID, ParentRunID: req.ParentRunID, PlanVersion: plan.Version, ProjectionDigest: req.ProjectionDigest, CapabilityDigest: plan.CapabilityDigest, TerminalStatus: outcome.Status, FailureClass: outcome.FailureClass}
 	if err := evidence.Validate(); err != nil {

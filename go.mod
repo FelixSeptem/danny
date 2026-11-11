@@ -3,8 +3,8 @@ module github.com/FelixSeptem/danny
 go 1.26.8
 
 require (
-	github.com/FelixSeptem/baymax v0.0.0-20261003094000-553e07625efb
-	github.com/FelixSeptem/stele v0.0.0-20261007033528-a556ac0ddacc
+	github.com/FelixSeptem/baymax v0.0.0-20261103091945-d2e08cd6dc8c
+	github.com/FelixSeptem/stele v0.0.0-20261025080141-f38016ec0cba
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.11.0
 	modernc.org/sqlite v1.60.1
@@ -54,11 +54,11 @@ require (
 	go.opentelemetry.io/otel/trace v1.44.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.9.0 // indirect
-	golang.org/x/crypto v0.51.0 // indirect
-	golang.org/x/net v0.55.0 // indirect
+	golang.org/x/crypto v0.57.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/text v0.39.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 	google.golang.org/genai v1.49.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/grpc v1.83.1 // indirect

@@ -46,10 +46,11 @@ func (c *Client) ProjectCompilationResult(ctx context.Context, projection Compil
 		// Stele's pinned governance extractor promotes conversation.message
 		// events. The operation metadata retains the Danny-specific projection
 		// kind while the event follows the public memory lifecycle contract.
-		"event_type":   "conversation.message",
-		"memory_path":  fmt.Sprintf("knowledge/generations/%d", projection.GenerationID),
-		"content":      string(content),
-		"metadata_map": map[string]any{"generation_id": projection.GenerationID, "source_ids": projection.SourceIDs, "decision_digest": projection.DecisionDigest, "artifact_summaries": projection.ArtifactSummaries},
+		"event_type":      "conversation.message",
+		"memory_path":     fmt.Sprintf("knowledge/generations/%d", projection.GenerationID),
+		"content":         string(content),
+		"metadata_map":    map[string]any{"generation_id": projection.GenerationID, "source_ids": projection.SourceIDs, "decision_digest": projection.DecisionDigest, "artifact_summaries": projection.ArtifactSummaries},
+		"source_metadata": runtimeReferenceSourceMetadata(),
 	}
 	var response struct {
 		EventID  string `json:"event_id"`
@@ -147,12 +148,9 @@ func (c *Client) retrieveCompilationReference(ctx context.Context, req runtimepr
 	}
 	var response struct {
 		Result struct {
-			Hits []struct {
-				Memory struct {
-					MemoryPath string `json:"memory_path"`
-					Content    string `json:"content"`
-				} `json:"memory"`
-			} `json:"hits"`
+			Matches []struct {
+				MemoryPath string `json:"memory_path"`
+			} `json:"matches"`
 		} `json:"result"`
 	}
 	var lastErr error
@@ -160,8 +158,8 @@ func (c *Client) retrieveCompilationReference(ctx context.Context, req runtimepr
 		if err := c.request(ctx, http.MethodPost, "/v1/provider/retrieve", body, &response); err != nil {
 			lastErr = err
 		} else {
-			for _, hit := range response.Result.Hits {
-				if hit.Memory.MemoryPath == memoryPath && hit.Memory.Content == expectedContent {
+			for _, match := range response.Result.Matches {
+				if match.MemoryPath == memoryPath {
 					return true, nil
 				}
 			}

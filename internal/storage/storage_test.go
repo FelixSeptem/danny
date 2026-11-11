@@ -51,6 +51,70 @@ func TestForwardMigrationPreservesExistingHarnessTables(t *testing.T) {
 	if _, err := store.DB().ExecContext(ctx, `SELECT id FROM task_harness_executions LIMIT 1`); err != nil {
 		t.Fatalf("harness table missing after migration: %v", err)
 	}
+	if _, err := store.DB().ExecContext(ctx, `SELECT id, continuity_reference FROM context_projection_snapshots LIMIT 1`); err != nil {
+		t.Fatalf("context projection table missing after migration: %v", err)
+	}
+}
+
+func TestV7ForwardMigrationAddsNativeBindingsAndMarksLegacyEvidence(t *testing.T) {
+	ctx := context.Background()
+	store, err := OpenSQLite(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = store.Close() }()
+	if _, err := store.DB().ExecContext(ctx, `
+CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
+INSERT INTO schema_migrations(version, applied_at) VALUES (6, '2026-10-20T00:00:00Z');
+CREATE TABLE task_harness_evidence (id TEXT PRIMARY KEY, execution_id TEXT NOT NULL, effect_key TEXT NOT NULL, parent_run_id TEXT NOT NULL DEFAULT '', child_run_id TEXT NOT NULL DEFAULT '', plan_version TEXT NOT NULL, capability_digest TEXT NOT NULL, projection_digest TEXT NOT NULL, status BYTEA NOT NULL, failure_class BYTEA NOT NULL DEFAULT '', diagnostic BYTEA NOT NULL DEFAULT '', result BYTEA NOT NULL DEFAULT '', created_at TEXT NOT NULL, UNIQUE(execution_id, effect_key));
+CREATE TABLE task_harness_checkpoints (execution_id TEXT PRIMARY KEY, run_id TEXT NOT NULL, plan_version TEXT NOT NULL, plan_digest TEXT NOT NULL, capability_digest TEXT NOT NULL, projection_digest TEXT NOT NULL, current_step TEXT NOT NULL DEFAULT '', pause_reason TEXT NOT NULL, completed_effect_keys BYTEA NOT NULL DEFAULT '', diagnostics BYTEA NOT NULL DEFAULT '', revision BIGINT NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+INSERT INTO task_harness_evidence(id, execution_id, effect_key, plan_version, capability_digest, projection_digest, status, created_at) VALUES ('legacy-event', 'legacy-run', 'parent', 'plan-1', 'cap-1', 'projection-1', 'succeeded', '2026-10-20T00:00:00Z');
+INSERT INTO task_harness_checkpoints(execution_id, run_id, plan_version, plan_digest, capability_digest, projection_digest, pause_reason, created_at, updated_at) VALUES ('legacy-run', 'legacy-run', 'plan-1', 'plan-digest', 'cap-1', 'projection-1', 'approval_required', '2026-10-20T00:00:00Z', '2026-10-20T00:00:00Z');
+`); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	version, err := store.SchemaVersion(ctx)
+	if err != nil || version != CurrentSchemaVersion {
+		t.Fatalf("schema version=%d err=%v", version, err)
+	}
+	var provenance, nativeID, nativeCheckpointVersion string
+	var observationPosition int64
+	if err := store.DB().QueryRowContext(ctx, `SELECT evidence_contract_version, native_event_id, observation_position FROM task_harness_evidence WHERE id='legacy-event'`).Scan(&provenance, &nativeID, &observationPosition); err != nil {
+		t.Fatal(err)
+	}
+	if provenance != LegacyEvidenceProvenance || nativeID != "" || observationPosition != 0 {
+		t.Fatalf("legacy evidence was relabeled: provenance=%q native_id=%q position=%d", provenance, nativeID, observationPosition)
+	}
+	if err := store.DB().QueryRowContext(ctx, `SELECT checkpoint_contract_version, native_checkpoint_version FROM task_harness_checkpoints WHERE execution_id='legacy-run'`).Scan(&nativeCheckpointVersion, &nativeID); err != nil {
+		t.Fatal(err)
+	}
+	if nativeCheckpointVersion != LegacyCheckpointContract || nativeID != "" {
+		t.Fatalf("legacy checkpoint was relabeled: contract=%q native_version=%q", nativeCheckpointVersion, nativeID)
+	}
+	for _, table := range []string{"execution_source_cursors", "execution_authority_bindings"} {
+		var name string
+		if err := store.DB().QueryRowContext(ctx, `SELECT name FROM sqlite_master WHERE type='table' AND name=?`, table).Scan(&name); err != nil || name != table {
+			t.Fatalf("migration table %q missing: name=%q err=%v", table, name, err)
+		}
+	}
+}
+
+func TestMigrationRejectsUnsupportedNewerSchemaContract(t *testing.T) {
+	ctx := context.Background()
+	store, err := OpenSQLite(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = store.Close() }()
+	if _, err := store.DB().ExecContext(ctx, `CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL); INSERT INTO schema_migrations(version, applied_at) VALUES (?, '2026-10-22T00:00:00Z')`, CurrentSchemaVersion+1); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Migrate(ctx); err == nil {
+		t.Fatal("unsupported newer schema contract accepted")
+	}
 }
 
 func TestTaskRevisionRejectsStaleUpdate(t *testing.T) {

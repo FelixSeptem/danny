@@ -58,22 +58,48 @@ type ParserSourceRecord struct {
 }
 
 var (
-	ErrRevisionConflict   = errors.New("storage: revision conflict")
-	ErrLeaseLost          = errors.New("storage: lease lost")
-	ErrEffectInProgress   = errors.New("storage: effect in progress")
-	ErrNotFound           = errors.New("storage: not found")
-	ErrInvalidTransition  = errors.New("storage: invalid execution transition")
-	ErrInvalidSchedule    = errors.New("storage: invalid schedule")
-	ErrOccurrenceConflict = errors.New("storage: occurrence conflict")
-	ErrDeliveryConflict   = errors.New("storage: delivery conflict")
+	ErrRevisionConflict    = errors.New("storage: revision conflict")
+	ErrLeaseLost           = errors.New("storage: lease lost")
+	ErrEffectInProgress    = errors.New("storage: effect in progress")
+	ErrNotFound            = errors.New("storage: not found")
+	ErrInvalidTransition   = errors.New("storage: invalid execution transition")
+	ErrInvalidSchedule     = errors.New("storage: invalid schedule")
+	ErrOccurrenceConflict  = errors.New("storage: occurrence conflict")
+	ErrDeliveryConflict    = errors.New("storage: delivery conflict")
+	ErrEvidenceConflict    = errors.New("storage: native evidence conflict")
+	ErrSourceOrderConflict = errors.New("storage: native source order conflict")
+	ErrInvalidReplayCursor = errors.New("storage: invalid replay cursor")
+	ErrReplayScope         = errors.New("storage: replay scope conflict")
+	ErrReplayExpired       = errors.New("storage: replay cursor expired")
+	ErrReplayGap           = errors.New("storage: replay history gap")
 )
 
-const CurrentSchemaVersion = 4
+const CurrentSchemaVersion = 9
+
+const (
+	NativeEvidenceContractV1 = "danny.native-evidence.v1"
+	LegacyEvidenceProvenance = "legacy_application_evidence"
+	NativeCheckpointContract = "danny.native-checkpoint.v1"
+	LegacyCheckpointContract = "legacy_application_checkpoint"
+)
 
 type Store struct {
 	db              *sql.DB
 	driver          string
 	failureInjector func(string) error
+}
+
+type ContextProjectionSnapshot struct {
+	ID, Scope, SessionID, TurnID, BindingID, RunID                      string
+	ContractVersion, Digest, SourceDigest                               string
+	ContinuityContractVersion, ContinuityReference, ContinuityExpiresAt string
+	Envelope                                                            []byte
+	CreatedAt, UpdatedAt                                                time.Time
+}
+
+type ContextProjectionRepository interface {
+	Save(context.Context, ContextProjectionSnapshot) (ContextProjectionSnapshot, error)
+	Get(context.Context, string, string) (ContextProjectionSnapshot, error)
 }
 
 func (s *Store) Close() error { return s.db.Close() }
@@ -420,11 +446,39 @@ type ExecutionPlanRecord struct {
 }
 
 type ExecutionCheckpoint struct {
-	ExecutionID, RunID, PlanVersion, PlanDigest     string
-	CapabilityDigest, ProjectionDigest, CurrentStep string
-	PauseReason, CompletedEffectKeys, Diagnostics   []byte
-	Revision                                        int64
-	CreatedAt, UpdatedAt                            time.Time
+	ExecutionID, RunID, PlanVersion, PlanDigest         string
+	CapabilityDigest, ProjectionDigest, CurrentStep     string
+	PauseReason, CompletedEffectKeys, Diagnostics       []byte
+	ContractVersion                                     string
+	TaskRevision                                        int64
+	WriteScope, EffectNamespace                         string
+	NativeCheckpointID, NativeCheckpointVersion         string
+	NativeCheckpointDigest                              string
+	SourceKind, SourceNamespace, SourceID, SourceCursor string
+	Revision                                            int64
+	CreatedAt, UpdatedAt                                time.Time
+}
+
+type ExecutionSourceCursor struct {
+	ExecutionID, SourceKind, SourceNamespace, SourceID string
+	CursorVersion, CursorValue, RetentionFloor         string
+	ContractVersion                                    string
+	SourceSequence, ObservationPosition                int64
+	UpdatedAt                                          time.Time
+}
+
+type ExecutionAuthorityBinding struct {
+	ExecutionID, ContractVersion                string
+	TaskRevision, ScheduleRevision              int64
+	PlanVersion, PlanDigest                     string
+	CapabilityDigest, ProjectionDigest          string
+	WriteScope, EffectNamespace                 string
+	CompletedEffectKeys                         []byte
+	NativeCheckpointID, NativeCheckpointVersion string
+	NativeCheckpointDigest                      string
+	SourceKind, SourceNamespace, SourceID       string
+	SourceCursor, ContextSnapshotID             string
+	CreatedAt, UpdatedAt                        time.Time
 }
 
 type ExecutionReplan struct {
@@ -436,9 +490,35 @@ type ExecutionReplan struct {
 
 type ExecutionEvidenceRecord struct {
 	ID, ExecutionID, EffectKey, ParentRunID, ChildRunID string
+	ObservationScope                                    string
 	PlanVersion, CapabilityDigest, ProjectionDigest     string
+	ContractVersion                                     string
+	NativeSourceKind, NativeSourceNamespace             string
+	NativeSourceID, NativeEventID, NativeVersion        string
+	NativeSequence                                      *int64
+	ObservationPosition                                 int64
 	Status, FailureClass, Diagnostic, Result            []byte
 	CreatedAt                                           time.Time
+}
+
+const ExecutionEvidenceReplayContractV1 = "danny.evidence-replay.v1"
+
+type ExecutionEvidenceReplayCursor struct {
+	ContractVersion string
+	ExecutionID     string
+	Scope           string
+	Position        int64
+}
+
+type ExecutionEvidenceReplayRequest struct {
+	Cursor ExecutionEvidenceReplayCursor
+	Limit  int
+}
+
+type ExecutionEvidenceReplayPage struct {
+	Evidence       []ExecutionEvidenceRecord
+	NextCursor     *ExecutionEvidenceReplayCursor
+	RetentionFloor int64
 }
 
 type ExecutionAdmission struct {
@@ -451,16 +531,22 @@ type ExecutionAdmission struct {
 // safety.
 type ExecutionRepository interface {
 	Admit(context.Context, ExecutionAdmission) (TaskExecution, error)
+	AdmitIfTaskRevisionCurrent(context.Context, ExecutionAdmission) (TaskExecution, error)
 	GetExecution(context.Context, string) (TaskExecution, error)
 	UpdateExecution(context.Context, string, int64, ExecutionStatus, []byte, []byte) (TaskExecution, error)
+	CommitExecutionIfTaskRevisionCurrent(context.Context, string, int64, int64, ExecutionStatus, []byte, []byte) (TaskExecution, error)
 	UpdateExecutionPlan(context.Context, string, int64, string, string, string, string, string, string) (TaskExecution, error)
+	BindExecutionTaskRevision(context.Context, string, int64, int64) (TaskExecution, error)
 	AppendPlan(context.Context, ExecutionPlanRecord) error
 	Plans(context.Context, string) ([]ExecutionPlanRecord, error)
 	SaveCheckpoint(context.Context, ExecutionCheckpoint) error
+	SaveNativeCheckpointAndPause(context.Context, ExecutionCheckpoint, ExecutionAuthorityBinding, int64) (TaskExecution, error)
 	GetCheckpoint(context.Context, string) (ExecutionCheckpoint, error)
 	RecordReplan(context.Context, ExecutionReplan) error
 	Replans(context.Context, string) ([]ExecutionReplan, error)
 	RecordEvidence(context.Context, ExecutionEvidenceRecord) (ExecutionEvidenceRecord, error)
+	ProjectNativeEvidence(context.Context, ExecutionEvidenceRecord, ExecutionSourceCursor) (ExecutionEvidenceRecord, error)
+	ReplayEvidence(context.Context, ExecutionEvidenceReplayRequest) (ExecutionEvidenceReplayPage, error)
 	Evidence(context.Context, string) ([]ExecutionEvidenceRecord, error)
 }
 
@@ -473,6 +559,9 @@ func (s *Store) Executions() ExecutionRepository   { return &executionRepository
 func (s *Store) Schedules() ScheduleRepository     { return &scheduleRepository{store: s} }
 func (s *Store) Webhooks() WebhookRepository       { return &webhookRepository{store: s} }
 func (s *Store) ParserJobs() ParserJobRepository   { return &parserJobRepository{store: s} }
+func (s *Store) ContextProjections() ContextProjectionRepository {
+	return &contextProjectionRepository{store: s}
+}
 func (s *Store) TerminalDeliveries() TerminalDeliveryRepository {
 	return &webhookRepository{store: s}
 }

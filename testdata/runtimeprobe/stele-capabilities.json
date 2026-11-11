@@ -1,0 +1,57 @@
+{
+  "schema_version": "runtime-capabilities.v1",
+  "dependency_pins": {
+    "stele": "v0.0.0-20261025080141-f38016ec0cba",
+    "baymax": "v0.0.0-20261103091945-d2e08cd6dc8c"
+  },
+  "capabilities": [
+    {
+      "id": "stele.context.schema",
+      "dependency": "stele",
+      "status": "verified",
+      "public_contract": "POST /v1/provider/context ProviderContextRequest/ProviderContextResponse",
+      "evidence": ["internal/context/stele/adapter_test.go", "testdata/runtimeprobe/stele-context-reference.json", "stele/openapi/provider_context_test.go"],
+      "notes": "Pinned response sections, citations and malformed/empty/reference provenance fixtures are deterministic; f38016e fresh PostgreSQL/pgvector initial/restart acceptance also verifies turn-bound context continuity."
+    },
+    {
+      "id": "stele.context.scope-budget",
+      "dependency": "stele",
+      "status": "verified",
+      "public_contract": "Provider context path selectors and budget_limits",
+      "evidence": ["internal/context/stele/adapter_test.go", "stele/openapi/provider_context_budget_test.go"],
+      "notes": "Danny rejects foreign scope, ambiguous selectors and invalid item/byte/reference bounds before model execution."
+    },
+    {
+      "id": "stele.context.continuity",
+      "dependency": "stele",
+      "status": "verified",
+      "public_contract": "ProviderContextContinuityInput/Result context-continuity-v1",
+      "evidence": ["internal/context/stele/adapter_test.go", "stele/docs/agent-runtime-memory-provider.md"],
+      "notes": "Issue/compare receipt shape and fresh/fresh_compare semantics are validated locally and against the f38016e fresh PostgreSQL/pgvector initial/restart service."
+    },
+    {
+      "id": "stele.context.admitted-projection",
+      "dependency": "danny",
+      "status": "verified",
+      "public_contract": "Danny ContextEnvelope and context_projection_snapshots",
+      "evidence": ["internal/storage/context_projection_test.go", "internal/context/stele/adapter_test.go"],
+      "notes": "Danny persists bounded authorized projections and keeps source and application digests distinct."
+    },
+    {
+      "id": "stele.context.snapshot-replay",
+      "dependency": "stele",
+      "status": "unsupported",
+      "public_contract": "ProviderContextContinuityCapabilities exact_snapshot_replay=false",
+      "evidence": ["stele/openapi/provider_context.go", "stele/docs/agent-runtime-memory-provider.md"],
+      "notes": "Stele continuity is metadata-only fresh comparison; restart equality uses Danny's admitted projection snapshot."
+    },
+    {
+      "id": "stele.context.live-service",
+      "dependency": "stele",
+      "status": "verified",
+      "public_contract": "Pinned PostgreSQL-backed provider runtime/context service",
+      "evidence": ["testdata/runtimeprobe/stele-f38016-live.evidence.json", "testdata/runtimeprobe/stele-f38016-reference.evidence.json", "testdata/runtimeprobe/stele-f38016-projection.evidence.json", "docs/stele-context-evidence.md"],
+      "notes": "The f38016e pin passed fresh PostgreSQL 18 + pgvector initial/restart verification for provider context, durable references, and runtime feedback projections. Omitted source_metadata defaults to untrusted/restricted and is excluded from public retrieval/context."
+    }
+  ]
+}

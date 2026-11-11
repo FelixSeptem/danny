@@ -19,6 +19,8 @@ The project validates Baymax and Stele through real workflows. Baymax remains th
 5. **No production workaround for upstream defects.** A behavior that requires a Baymax or Stele change is recorded in the corresponding findings document and blocks dependent work until an upstream release or pinned reviewable commit fixes it.
 6. **Durability before scale.** Cross-store boundaries use database transactions, durable outboxes, idempotency keys, manifests, and startup reconciliation before adding more Agent modes.
 7. **Local-first security is explicit.** The unauthenticated MVP binds to loopback. A non-loopback deployment is rejected until an authenticated mode with authorization and request-forgery protection exists.
+8. **Ownership is explicit.** Baymax owns generic execution mechanics; Stele owns memory retrieval and context continuity; Danny owns product entities, authorization, durable cross-store commits, and user-facing projections. A boundary cannot be copied into Danny merely because a product feature needs it.
+9. **The browser consumes product projections.** The workbench consumes Danny-owned execution and context projections. It never depends on Baymax internal event types or Stele internal records, and a UI action never bypasses Danny authorization, revision, or idempotency checks.
 
 ## Dependency map
 
@@ -32,9 +34,11 @@ flowchart TD
     P5[Milestone 5\nTasks and dynamic execution planner]
     P6[Milestone 6\nScheduler mailbox and delivery]
     P7[Milestone 7\nDocument ingestion and parser boundary]
-    P8[Milestone 8\nHTTP API and Web workbench]
-    P9[Milestone 9\nDocker profiles and operations]
-    P10[Milestone 10\nEnd-to-end validation and release gate]
+    P8[Milestone 8\nRuntime and context ownership boundary]
+    P9[Milestone 9\nAgent UI protocol boundary]
+    P10[Milestone 10\nHTTP API and Web workbench]
+    P11[Milestone 11\nDocker profiles and operations]
+    P12[Milestone 12\nEnd-to-end validation and release gate]
 
     P0 --> P1
     P0 --> P2
@@ -45,18 +49,28 @@ flowchart TD
     P2 --> P5
     P5 --> P6
     P4 --> P7
-    P7 --> P8
+    P1 --> P8
+    P3 --> P8
     P5 --> P8
     P6 --> P8
-    P2 --> P9
-    P6 --> P9
     P8 --> P9
-    P4 --> P10
-    P5 --> P10
-    P6 --> P10
     P7 --> P10
     P8 --> P10
     P9 --> P10
+    P5 --> P10
+    P6 --> P10
+    P2 --> P11
+    P6 --> P11
+    P8 --> P11
+    P10 --> P11
+    P4 --> P12
+    P5 --> P12
+    P6 --> P12
+    P7 --> P12
+    P8 --> P12
+    P9 --> P12
+    P10 --> P12
+    P11 --> P12
 ```
 
 Milestones 1 and 2 can proceed in parallel after Milestone 0. The runtime probe must complete before any feature claims Baymax/Stele integration. The storage foundation must complete before tasks, schedules, or compilation durability is implemented.
@@ -313,31 +327,116 @@ Milestones 1 and 2 can proceed in parallel after Milestone 0. The runtime probe 
 
 **Next implementation plan:** parser contract, Python adapter, resource limits, job persistence, Docker profile, and format/failure fixtures.
 
-## Milestone 8 — HTTP API and Web workbench
+## Milestone 8 — Runtime and context ownership boundary
+
+**Status (2026-11-05): implementation evidence is substantially complete, but the exit gate is not passed.** The pinned Stele `f38016e` PostgreSQL/pgvector and Danny end-to-end evidence is recorded; deterministic Baymax contracts, durable storage checks, and static/test quality gates pass. The required real OpenAI-compatible/Baymax live smoke is unavailable in the current environment because no endpoint, model, or credential is configured. The recorded result is `skipped-unconfigured` and is incomplete acceptance, not a passing live result. Milestone 9 handoff remains deferred until task 7.3 is completed with real provider evidence.
+
+**Purpose:** make the Baymax execution plane, Stele context plane, and Danny product control plane explicit before exposing either one through a browser. This milestone moves generic runtime responsibilities toward their upstream owners through public contracts and evidence; it does not move Danny's task, knowledge, schedule, authorization, or commit authority into either dependency.
+
+**Baymax boundary:**
+
+- Baymax owns Run/Stream execution, tool invocation, child runs, teams, workflows, mailbox mechanics, checkpoint/resume, safe points, retry/cancel/timeout, terminal semantics, and native execution event ordering.
+- Danny owns admission, task revision, policy and write scope, plan selection, effect keys, application commit gates, and business correlation fields.
+- The Danny adapter consumes Baymax's public event and recovery surface instead of synthesizing a second execution lifecycle.
+
+**Stele boundary:**
+
+- Stele owns scoped memory, retrieval and ranking, context assembly and budget selection, provenance, memory paths, idempotent memory writes, sessions, turns, and context continuity.
+- Danny owns source trust classification, role and tool authorization, product references, task and generation authority, and the policy that decides whether a Stele result may enter a write-capable run.
+- Danny consumes bounded structured references and provenance through the Stele adapter; it does not copy Stele internals into business modules.
+
+**Deliverables:**
+
+- A versioned Baymax execution-host contract for Danny `ExecutionPlan` projection, parent/child correlation, teams, workflows, mailbox continuation, checkpoints, resume, safe points, retry, terminal outcomes, and event cursors.
+- A Danny adapter that records real Baymax execution events and recovery evidence, with Run/Stream terminal and aggregation parity.
+- A versioned Stele context contract for scoped query, role/policy hints, context budget, bounded references, provenance, selection metadata, projection digest, and idempotent writes.
+- A Stele adapter that uses native context and memory capabilities where the public contract supports them, while keeping Danny's untrusted-source and tool policy at the application boundary.
+- An ownership matrix mapping every current runtime, context, scheduler, task, knowledge, and delivery responsibility to Baymax, Stele, or Danny.
+- Contract tests and pinned dependency evidence for event replay, checkpoint recovery, bounded context assembly, restart projection, and idempotent memory effects.
+- Upstream findings for any missing or incorrect Baymax/Stele capability. A dependent task is marked `blocked-upstream` when the required public contract cannot be verified; no local production workaround is introduced.
+
+**Exit gate:**
+
+- Baymax produces correlated native execution events for direct, child, team, workflow, and mailbox paths, and a reconnect can resume from a durable cursor without changing terminal semantics.
+- Checkpoint and resume preserve plan version, capability digest, projection digest, write scope, and completed effect keys.
+- Danny no longer needs to define a competing execution lifecycle for a capability already provided by Baymax; remaining Danny state is product authority or a durable application commit.
+- Stele returns bounded, scoped, provenance-carrying context and honors its documented idempotency behavior across restart.
+- Danny does not treat Stele content as authorization, and source text remains marked untrusted before a write-capable Agent run.
+- Any upstream limitation has a Chinese finding with reproduction, evidence, affected roadmap task, and unblock condition; unresolved blockers are excluded from the next milestone's feature claims.
+
+**Next implementation plan:** Baymax execution-host adapter, Stele context contract, ownership matrix, migration evidence, and upstream boundary findings.
+
+## Milestone 9 — Agent UI protocol boundary
+
+**Purpose:** establish a stable browser-facing projection for Agent execution and controlled dynamic UI before implementing the full HTTP workbench. AG-UI is used for execution events; A2UI is used for declarative forms and interaction cards. Neither protocol becomes the source of truth for Danny tasks, memory, schedules, or business side effects.
+
+**AG-UI event projection:**
+
+- Map Danny execution records and verified Baymax events to a Danny-owned AG-UI-compatible event stream.
+- Support event IDs, ordered sequences, terminal events, reconnect cursors, replay, cancellation status, and refresh reconciliation.
+- Include typed projections for Agent output, tool calls, child runs, teams, workflows, mailbox state, planner decisions, checkpoints, citations, and failures.
+- Keep Baymax event types behind the adapter so the React client does not import Baymax packages or internal event structures.
+
+**A2UI dynamic surface:**
+
+- Use A2UI `v0.9.1` for the first dynamic form and interaction-card trial because it is the current production version and the React renderer is marked Stable for that version.
+- Define a restricted Danny catalog containing only server-registered components and actions. Model-generated component names, functions, and props never become executable by default.
+- Validate every action on the server using execution ID, surface ID, surface revision, action ID, user activation, schema, authorization policy, task revision, and an idempotency key.
+- Treat labels, options, source excerpts, retrieved memory, and imported documents as untrusted data. A2UI actions cannot expand Baymax tool capabilities or bypass Danny commit gates.
+- Keep an internal `DynamicSurface` and `SurfaceAction` model so a future A2UI v1.0 adapter can be added without changing Agent runtime or business APIs.
+
+**Version and scope policy:**
+
+- As checked on 2026-10-09, the [A2UI specification versions](https://a2ui.org/#specification-versions) page marks v1.0 as Candidate/Release candidate, with a [roadmap target of Q4 2026](https://a2ui.org/roadmap/) and no committed release date.
+- The v1.0 roadmap includes protocol stability, v0.9 migration guidance, a complete test suite, and renderer certification. Danny must not claim v1.0 support until the release and the React renderer support are verified.
+- The [v1.0 evolution guide](https://a2ui.org/specification/v1.0-evolution-guide/) describes action responses, action IDs, `surfaceProperties`, bidirectional function calls, catalog ownership, extension metadata, and caller authorization.
+- The [renderer status](https://a2ui.org/reference/renderers/) lists React support for v0.9.1 as Stable and v1.0 as Planned; verify this status again when implementing or upgrading the renderer.
+- MCP-UI/MCP Apps remains deferred as an external MCP tool UI integration. It is not a replacement for the local React workbench in this milestone.
+
+**Deliverables:**
+
+- AG-UI-compatible SSE projection with replay and reconnect contract tests.
+- A2UI v0.9.1 restricted catalog, React renderer compatibility fixture, server-side action validator, and revision/idempotency enforcement.
+- `DynamicSurface`, `SurfaceAction`, and `SurfaceSubmission` application models independent of A2UI wire versions.
+- Security tests proving imported or retrieved instructions cannot create a new action, invoke a tool, or submit a stale surface.
+- A compatibility note documenting A2UI v0.9.1 support, the v1.0 Candidate status, Q4 2026 roadmap target, and the conditions for upgrading.
+
+**Exit gate:**
+
+- A browser client can reconnect to a running execution and converge on the same terminal state without duplicate logical side effects.
+- AG-UI projections cover Baymax execution modes without exposing Baymax internals to the client.
+- A2UI v0.9.1 can render a server-approved form and interaction card, and an action reaches Danny's authorization and idempotency boundary before any mutation.
+- Stale, replayed, unauthorized, malformed, and untrusted submissions are rejected with typed errors.
+- No feature claim depends on A2UI v1.0 or an unverified React v1.0 renderer.
+
+**Next implementation plan:** AG-UI/SSE event projection, A2UI catalog and action boundary, React compatibility fixture, and reconnect/security tests.
+
+## Milestone 10 — HTTP API and Web workbench
 
 **Purpose:** expose the verified domain capabilities through a local browser workbench.
 
 **Deliverables:**
 
 - Loopback-only HTTP server with same-origin state-changing request checks.
-- Streaming chat endpoint with typed Agent, tool, team, mailbox, planner, and citation events.
+- Streaming chat endpoint that exposes the Milestone 9 AG-UI-compatible execution projection.
 - Knowledge endpoints for directory configuration, indexing, artifact browsing, source sections, and index status.
 - Task endpoints with revision-aware updates and conflict responses.
 - Schedule endpoints with misfire/timezone configuration and execution history.
 - Notification and Webhook delivery status views.
 - Run inspector showing parent/child runs, plan versions, teams, mailbox states, leases, retries, DLQ, context projection digests, and Stele references.
-- Functional OpenKB-like layout with knowledge navigation and central chat.
+- React + TypeScript + Vite workbench with OpenKB-like knowledge navigation, central chat, AG-UI event consumption, and the restricted A2UI v0.9.1 renderer from Milestone 9.
 
 **Exit gate:**
 
 - The browser can complete the documented knowledge, memory, task, schedule, notification, and citation scenarios through the API.
-- Streamed events and final state agree after refresh.
+- Streamed AG-UI events and final state agree after refresh or reconnect.
 - A stale UI update displays a revision conflict and cannot overwrite newer state.
+- A dynamic A2UI form or card can request a permitted action, display a typed rejection, and never invoke a mutation directly from browser-provided component data.
 - The UI cannot access the service from a non-loopback binding in the default profile.
 
-**Next implementation plan:** API contracts, SSE/event mapping, browser state model, and workbench views.
+**Next implementation plan:** HTTP resource contracts, React state model, AG-UI/A2UI client integration, workbench views, and browser security tests.
 
-## Milestone 9 — Docker profiles and operations
+## Milestone 11 — Docker profiles and operations
 
 **Purpose:** make the validated local system reproducible in Docker with SQLite and PostgreSQL modes.
 
@@ -362,7 +461,7 @@ Milestones 1 and 2 can proceed in parallel after Milestone 0. The runtime probe 
 
 **Next implementation plan:** container build, Compose profiles, health checks, migration startup, and recovery smoke tests.
 
-## Milestone 10 — End-to-end validation and release gate
+## Milestone 12 — End-to-end validation and release gate
 
 **Purpose:** prove the project validates Baymax and Stele in real user workflows and is ready for the next development cycle.
 
@@ -381,6 +480,9 @@ Milestones 1 and 2 can proceed in parallel after Milestone 0. The runtime probe 
 11. Run deterministic fake-model contract tests and an OpenAI-compatible live smoke test.
 12. Import representative PDF, DOCX, PPTX, XLSX, XLS, HTML, CSV, TXT, and Markdown files through the parser service and verify canonical output or structured failure.
 13. Verify all active Baymax/Stele findings have regression fixtures and that blocked tasks remain blocked until the upstream repair is verified.
+14. Reconnect a browser during direct, child, team, workflow, mailbox, and scheduled runs; verify the AG-UI projection converges with the durable Danny execution record and terminal result.
+15. Render a restricted A2UI v0.9.1 form and interaction card; verify stale, replayed, unauthorized, malformed, and untrusted submissions cannot create an effect or expand Agent authority.
+16. Verify Baymax execution recovery and Stele bounded context/restart behavior through the contracts established in Milestone 8, including all documented upstream blockers.
 
 **Release gate:**
 
@@ -389,6 +491,7 @@ Milestones 1 and 2 can proceed in parallel after Milestone 0. The runtime probe 
 - No unresolved `blocked-upstream` dependency is included in the claimed feature set.
 - The upstream findings documents contain version, reproduction, evidence, affected task, and unblock condition for every discovered issue.
 - The design's durability claims are backed by crash-recovery tests rather than only in-process tests.
+- Browser execution projections, dynamic UI actions, and durable product state agree across refresh, reconnect, retry, and restart boundaries.
 
 ## Upstream blocking policy
 

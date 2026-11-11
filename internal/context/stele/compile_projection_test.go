@@ -3,6 +3,7 @@ package stele
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,6 +11,23 @@ import (
 
 	"github.com/FelixSeptem/danny/internal/runtimeprobe"
 )
+
+func TestProjectCompilationClassifiesIdempotencyConflict(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"error":{"code":"idempotency_conflict"}}`))
+	}))
+	defer server.Close()
+	client, err := NewClient(server.URL, server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = client.ProjectCompilationResult(context.Background(), CompilationProjection{RunID: "run-1", GenerationID: 3, DecisionDigest: "digest"})
+	if !errors.Is(err, ErrIdempotencyConflict) {
+		t.Fatalf("error=%v, want ErrIdempotencyConflict", err)
+	}
+}
 
 func TestClientProjectsCompileReferenceWithoutArtifactBody(t *testing.T) {
 	var got map[string]any
@@ -40,6 +58,10 @@ func TestClientProjectsCompileReferenceWithoutArtifactBody(t *testing.T) {
 	metadataMap, ok := got["metadata_map"].(map[string]any)
 	if !ok || metadataMap["generation_id"] != float64(3) {
 		t.Fatalf("metadata_map=%#v", got["metadata_map"])
+	}
+	sourceMetadata, ok := got["source_metadata"].(map[string]any)
+	if !ok || sourceMetadata["version"] != "source-metadata-v1" || sourceMetadata["trust"] != "untrusted" || sourceMetadata["classification"] != "medium" {
+		t.Fatalf("source_metadata=%#v, want explicit untrusted/medium disclosure", got["source_metadata"])
 	}
 	if _, ok := got["artifact_bodies"]; ok {
 		t.Fatalf("artifact body leaked: %#v", got)
@@ -98,8 +120,7 @@ func TestCompilationProbeCorrelatesReplayAndExactPathReference(t *testing.T) {
 			}
 			_, _ = w.Write([]byte(`{"event_id":"event-compile","replayed":true}`))
 		case "/v1/provider/retrieve":
-			content, _ := json.Marshal(projection)
-			response := map[string]any{"result": map[string]any{"hits": []any{map[string]any{"memory": map[string]string{"memory_path": "knowledge/generations/987654321", "content": string(content)}}}}}
+			response := map[string]any{"result": map[string]any{"disclosure_profile": "memory-reference-v1", "response_mode": "reference_only", "matches": []any{map[string]any{"memory_id": "memory-compile", "memory_path": "knowledge/generations/987654321", "class": "episodic", "state": "active", "version": 1, "source_metadata": map[string]string{"version": "source-metadata-v1", "trust": "untrusted", "classification": "low"}}}}}
 			_ = json.NewEncoder(w).Encode(response)
 		default:
 			t.Fatalf("unexpected path %q", r.URL.Path)

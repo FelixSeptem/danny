@@ -39,6 +39,9 @@ var migrationStatements = []string{
 	`CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_claim ON webhook_deliveries(status, next_attempt_at, lease_until)`,
 	`CREATE TABLE IF NOT EXISTS parser_jobs (id TEXT PRIMARY KEY, contract_version TEXT NOT NULL, idempotency_key TEXT NOT NULL, staging_object_id TEXT NOT NULL, source_fingerprint TEXT NOT NULL, content_hash TEXT NOT NULL, filename TEXT NOT NULL, format_hint TEXT NOT NULL DEFAULT '', policy BYTEA NOT NULL DEFAULT '', status TEXT NOT NULL, attempt_count INTEGER NOT NULL DEFAULT 0, result BYTEA NOT NULL DEFAULT '', failure BYTEA NOT NULL DEFAULT '', parser_version TEXT NOT NULL DEFAULT '', provider_mode TEXT NOT NULL DEFAULT '', cleanup_state TEXT NOT NULL DEFAULT 'pending', owner TEXT NOT NULL DEFAULT '', lease_until TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(idempotency_key))`,
 	`CREATE INDEX IF NOT EXISTS idx_parser_jobs_claim ON parser_jobs(status, lease_until, created_at)`,
+	`CREATE TABLE IF NOT EXISTS context_projection_snapshots (id TEXT PRIMARY KEY, scope TEXT NOT NULL, session_id TEXT NOT NULL, turn_id TEXT NOT NULL, binding_id TEXT NOT NULL, run_id TEXT NOT NULL, contract_version TEXT NOT NULL, digest TEXT NOT NULL, source_digest TEXT NOT NULL, continuity_contract_version TEXT NOT NULL DEFAULT '', continuity_reference TEXT NOT NULL DEFAULT '', continuity_expires_at TEXT NOT NULL DEFAULT '', envelope BYTEA NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(scope, id))`,
+	`CREATE TABLE IF NOT EXISTS execution_source_cursors (execution_id TEXT NOT NULL, source_kind TEXT NOT NULL, source_namespace TEXT NOT NULL, source_id TEXT NOT NULL, cursor_version TEXT NOT NULL, cursor_value TEXT NOT NULL, retention_floor TEXT NOT NULL DEFAULT '', source_sequence BIGINT NOT NULL DEFAULT 0, observation_position BIGINT NOT NULL DEFAULT 0, contract_version TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(execution_id, source_kind, source_namespace, source_id))`,
+	`CREATE TABLE IF NOT EXISTS execution_authority_bindings (execution_id TEXT PRIMARY KEY, contract_version TEXT NOT NULL, task_revision BIGINT NOT NULL DEFAULT 0, schedule_revision BIGINT NOT NULL DEFAULT 0, plan_version TEXT NOT NULL, plan_digest TEXT NOT NULL, capability_digest TEXT NOT NULL, projection_digest TEXT NOT NULL, write_scope TEXT NOT NULL, effect_namespace TEXT NOT NULL, completed_effect_keys BYTEA NOT NULL DEFAULT '[]', native_checkpoint_id TEXT NOT NULL DEFAULT '', native_checkpoint_version TEXT NOT NULL DEFAULT '', native_checkpoint_digest TEXT NOT NULL DEFAULT '', source_kind TEXT NOT NULL DEFAULT '', source_namespace TEXT NOT NULL DEFAULT '', source_id TEXT NOT NULL DEFAULT '', source_cursor TEXT NOT NULL DEFAULT '', context_snapshot_id TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
 }
 
 func (s *Store) Migrate(ctx context.Context) error {
@@ -66,12 +69,184 @@ func (s *Store) Migrate(ctx context.Context) error {
 		if err := ensureSourceMetadataColumns(ctx, tx, s.driver); err != nil {
 			return fmt.Errorf("ensure source metadata columns: %w", err)
 		}
+		if err := ensureContextProjectionColumns(ctx, tx, s.driver); err != nil {
+			return fmt.Errorf("ensure context projection columns: %w", err)
+		}
+		if err := ensureNativeEvidenceColumns(ctx, tx, s.driver); err != nil {
+			return fmt.Errorf("ensure native evidence columns: %w", err)
+		}
+		if err := ensureNativeCheckpointColumns(ctx, tx, s.driver); err != nil {
+			return fmt.Errorf("ensure native checkpoint columns: %w", err)
+		}
+		indexStatement := `CREATE UNIQUE INDEX IF NOT EXISTS idx_task_harness_native_event ON task_harness_evidence(execution_id, native_source_kind, native_source_namespace, native_source_id, native_event_id) WHERE native_event_id <> ''`
+		if _, err := tx.ExecContext(ctx, s.bind(indexStatement)); err != nil {
+			return fmt.Errorf("create native evidence index: %w", err)
+		}
+		replayIndexStatement := `CREATE INDEX IF NOT EXISTS idx_task_harness_evidence_replay ON task_harness_evidence(execution_id, observation_scope, observation_position)`
+		if _, err := tx.ExecContext(ctx, s.bind(replayIndexStatement)); err != nil {
+			return fmt.Errorf("create evidence replay index: %w", err)
+		}
 		if _, err := tx.ExecContext(ctx, s.bind(`INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)`), CurrentSchemaVersion, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
 			return fmt.Errorf("record schema migration: %w", err)
 		}
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit migration: %w", err)
+	}
+	return nil
+}
+
+func tableColumns(ctx context.Context, tx *sql.Tx, driver, table string) (map[string]bool, error) {
+	columns := map[string]bool{}
+	if driver == "postgres" {
+		rows, err := tx.QueryContext(ctx, `SELECT column_name FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=$1`, table)
+		if err != nil {
+			return nil, err
+		}
+		defer func() { _ = rows.Close() }()
+		for rows.Next() {
+			var name string
+			if err := rows.Scan(&name); err != nil {
+				return nil, err
+			}
+			columns[name] = true
+		}
+		return columns, rows.Err()
+	}
+	rows, err := tx.QueryContext(ctx, "PRAGMA table_info("+table+")")
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var cid, notNull, primaryKey int
+		var name, dataType string
+		var defaultValue sql.NullString
+		if err := rows.Scan(&cid, &name, &dataType, &notNull, &defaultValue, &primaryKey); err != nil {
+			return nil, err
+		}
+		columns[name] = true
+	}
+	return columns, rows.Err()
+}
+
+func ensureNativeEvidenceColumns(ctx context.Context, tx *sql.Tx, driver string) error {
+	columns, err := tableColumns(ctx, tx, driver, "task_harness_evidence")
+	if err != nil {
+		return err
+	}
+	additions := []struct{ name, statement string }{
+		{"native_source_kind", `ALTER TABLE task_harness_evidence ADD COLUMN native_source_kind TEXT NOT NULL DEFAULT ''`},
+		{"native_source_namespace", `ALTER TABLE task_harness_evidence ADD COLUMN native_source_namespace TEXT NOT NULL DEFAULT ''`},
+		{"native_source_id", `ALTER TABLE task_harness_evidence ADD COLUMN native_source_id TEXT NOT NULL DEFAULT ''`},
+		{"native_event_id", `ALTER TABLE task_harness_evidence ADD COLUMN native_event_id TEXT NOT NULL DEFAULT ''`},
+		{"native_sequence", `ALTER TABLE task_harness_evidence ADD COLUMN native_sequence BIGINT`},
+		{"native_version", `ALTER TABLE task_harness_evidence ADD COLUMN native_version TEXT NOT NULL DEFAULT ''`},
+		{"observation_position", `ALTER TABLE task_harness_evidence ADD COLUMN observation_position BIGINT NOT NULL DEFAULT 0`},
+		{"evidence_contract_version", `ALTER TABLE task_harness_evidence ADD COLUMN evidence_contract_version TEXT NOT NULL DEFAULT 'legacy_application_evidence'`},
+		{"observation_scope", `ALTER TABLE task_harness_evidence ADD COLUMN observation_scope TEXT NOT NULL DEFAULT ''`},
+	}
+	for _, addition := range additions {
+		if columns[addition.name] {
+			continue
+		}
+		statement := addition.statement
+		if driver == "postgres" {
+			statement = strings.Replace(statement, "ADD COLUMN ", "ADD COLUMN IF NOT EXISTS ", 1)
+		}
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func ensureNativeCheckpointColumns(ctx context.Context, tx *sql.Tx, driver string) error {
+	columns, err := tableColumns(ctx, tx, driver, "task_harness_checkpoints")
+	if err != nil {
+		return err
+	}
+	additions := []struct{ name, statement string }{
+		{"checkpoint_contract_version", `ALTER TABLE task_harness_checkpoints ADD COLUMN checkpoint_contract_version TEXT NOT NULL DEFAULT 'legacy_application_checkpoint'`},
+		{"task_revision", `ALTER TABLE task_harness_checkpoints ADD COLUMN task_revision BIGINT NOT NULL DEFAULT 0`},
+		{"write_scope", `ALTER TABLE task_harness_checkpoints ADD COLUMN write_scope TEXT NOT NULL DEFAULT ''`},
+		{"effect_namespace", `ALTER TABLE task_harness_checkpoints ADD COLUMN effect_namespace TEXT NOT NULL DEFAULT ''`},
+		{"native_checkpoint_id", `ALTER TABLE task_harness_checkpoints ADD COLUMN native_checkpoint_id TEXT NOT NULL DEFAULT ''`},
+		{"native_checkpoint_version", `ALTER TABLE task_harness_checkpoints ADD COLUMN native_checkpoint_version TEXT NOT NULL DEFAULT ''`},
+		{"native_checkpoint_digest", `ALTER TABLE task_harness_checkpoints ADD COLUMN native_checkpoint_digest TEXT NOT NULL DEFAULT ''`},
+		{"source_kind", `ALTER TABLE task_harness_checkpoints ADD COLUMN source_kind TEXT NOT NULL DEFAULT ''`},
+		{"source_namespace", `ALTER TABLE task_harness_checkpoints ADD COLUMN source_namespace TEXT NOT NULL DEFAULT ''`},
+		{"source_id", `ALTER TABLE task_harness_checkpoints ADD COLUMN source_id TEXT NOT NULL DEFAULT ''`},
+		{"source_cursor", `ALTER TABLE task_harness_checkpoints ADD COLUMN source_cursor TEXT NOT NULL DEFAULT ''`},
+	}
+	for _, addition := range additions {
+		if columns[addition.name] {
+			continue
+		}
+		statement := addition.statement
+		if driver == "postgres" {
+			statement = strings.Replace(statement, "ADD COLUMN ", "ADD COLUMN IF NOT EXISTS ", 1)
+		}
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func ensureContextProjectionColumns(ctx context.Context, tx *sql.Tx, driver string) error {
+	columns := map[string]bool{}
+	if driver == "postgres" {
+		rows, err := tx.QueryContext(ctx, `SELECT column_name FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='context_projection_snapshots'`)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = rows.Close() }()
+		for rows.Next() {
+			var name string
+			if err := rows.Scan(&name); err != nil {
+				return err
+			}
+			columns[name] = true
+		}
+		if err := rows.Err(); err != nil {
+			return err
+		}
+	} else {
+		rows, err := tx.QueryContext(ctx, `PRAGMA table_info(context_projection_snapshots)`)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = rows.Close() }()
+		for rows.Next() {
+			var cid, notNull, primaryKey int
+			var name, dataType string
+			var defaultValue sql.NullString
+			if err := rows.Scan(&cid, &name, &dataType, &notNull, &defaultValue, &primaryKey); err != nil {
+				return err
+			}
+			columns[name] = true
+		}
+		if err := rows.Err(); err != nil {
+			return err
+		}
+	}
+	additions := []struct{ name, statement string }{
+		{"continuity_contract_version", `ALTER TABLE context_projection_snapshots ADD COLUMN continuity_contract_version TEXT NOT NULL DEFAULT ''`},
+		{"continuity_reference", `ALTER TABLE context_projection_snapshots ADD COLUMN continuity_reference TEXT NOT NULL DEFAULT ''`},
+		{"continuity_expires_at", `ALTER TABLE context_projection_snapshots ADD COLUMN continuity_expires_at TEXT NOT NULL DEFAULT ''`},
+	}
+	for _, addition := range additions {
+		if columns[addition.name] {
+			continue
+		}
+		statement := addition.statement
+		if driver == "postgres" {
+			statement = strings.Replace(statement, "ADD COLUMN ", "ADD COLUMN IF NOT EXISTS ", 1)
+		}
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return err
+		}
 	}
 	return nil
 }

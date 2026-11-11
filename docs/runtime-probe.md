@@ -26,6 +26,12 @@ $env:STELE_URL = "http://127.0.0.1:8080"
 go run ./cmd/runtime-probe live-smoke > live-runtime-probe.json
 ```
 
+On 2026-11-05 this command was run with `OPENAI_BASE_URL`, `OPENAI_MODEL`,
+and `OPENAI_API_KEY` unset. It returned `skipped-unconfigured` without
+contacting a provider; the result is recorded as incomplete acceptance in
+`testdata/runtimeprobe/baymax-live-smoke-unavailable.evidence.json`. This is
+not a substitute for the required real OpenAI-compatible smoke evidence.
+
 For a real Stele-only probe against a PostgreSQL-backed service:
 
 ```powershell
@@ -62,16 +68,37 @@ adapter sends `X-Stele-Runtime-Binding`, `X-Stele-Runtime-Session`, and the
 occurrence-scoped `Idempotency-Key` where available.
 
 The offline evidence covers Baymax Run/Stream, typed local tools, Composer
-child dispatch, teams, mailbox lifecycle, and scheduler/context adapter calls
-through deterministic fixtures. Stele persistence cases use the real service
-and PostgreSQL system of record; they are never replaced with an in-process
-store.
+child dispatch, native parallel/vote teams, mailbox lifecycle, and
+scheduler/context adapter calls through deterministic fixtures. Team evidence
+includes execution-derived team/member identities, native member and team
+cursors, inherited authority, native worker/timeout/cancellation controls,
+vote provenance, and fail-closed aggregation. Stele persistence cases use the
+real service and PostgreSQL system of record; they are never replaced with an
+in-process store.
+
+The repository contract suite can exercise the application durability boundary
+against Docker PostgreSQL as well as SQLite:
+
+```powershell
+$env:DANNY_TEST_POSTGRES_URL = "postgres://stele:stele-local-only@127.0.0.1:5432/stele?sslmode=disable"
+go test ./internal/storage -count=1
+```
+
+This checks Danny migrations, native evidence/cursor projection, checkpoint
+authority, revision conflicts, scheduled effects, and outbox delivery. It is
+not evidence that the PostgreSQL database is a pinned Stele service.
 
 The latest committed Compose-backed Stele run is recorded at
-`testdata/runtimeprobe/stele-compose.evidence.json`. Context, basic memory
-append/query, fresh-adapter restart projection, and occurrence replay passed
-against `github.com/FelixSeptem/stele
-v0.0.0-20261007033528-a556ac0ddacc`. The provider principal UUID issue from
+`testdata/runtimeprobe/stele-compose.evidence.json`. That historical artifact
+was captured against `github.com/FelixSeptem/stele
+v0.0.0-20261007033528-a556ac0ddacc` and is not evidence for the current pin.
+The current adapter is pinned to
+`github.com/FelixSeptem/stele v0.0.0-20261025080141-f38016ec0cba`. Its public
+turn-bound context contract is exercised by local adapter fixtures and by the
+current pinned PostgreSQL/pgvector evidence in
+`testdata/runtimeprobe/stele-f38016-*.evidence.json`. The historical context,
+basic memory append/query, fresh-adapter restart projection, and occurrence
+replay results below remain historical context only. The provider principal UUID issue from
 `STELE-002`, canonical path promotion issue from `STELE-003`, summary
 canonical persistence issue from `STELE-004`, and provenance UUID issue from
 `STELE-005` are fixed upstream. After the existing asynchronous governance
@@ -83,6 +110,26 @@ continues sending `input.top_k`; it does not maintain a local reference store
 or rewrite paths. Because Stele governance runs asynchronously in the worker,
 the live smoke verification waits for that existing worker projection before
 performing the exact-path read.
+
+The historical `7ffd30f9e635` context smoke was blocked by the disclosure route
+gate; its evidence remains in `stele-7ffd-live.evidence.json` and its repair is
+present in Stele commit `6d8983099147d79b432575347a1dfdf2abaf7fe7`. The prior
+`b63151c0464d` context smoke first creates a server-issued Provider turn through
+`POST /v1/provider/turns`, then performs an exact turn-bound
+`POST /v1/provider/context` read with `continuity.mode=issue`, and finally
+repeats it with `continuity.mode=compare`. Evidence records the turn ID,
+source/application digests and continuity outcomes only; it never stores the
+context body, query, credential or authorization headers. That pin's
+`400 operation_failed` result is retained in
+`testdata/runtimeprobe/stele-b631-live.evidence.json` and `STELE-007`.
+The current f38016e pin passed the original Stele assurance and Danny's
+fresh PostgreSQL/pgvector end-to-end smoke; sanitized reports are in
+`testdata/runtimeprobe/stele-f38016-*.evidence.json`, including
+`stele-f38016-danny-smoke.evidence.json`.
+The current `f38016e` pin additionally documents that events omitting
+`source_metadata` default to `untrusted/restricted` and remain excluded from
+public retrieve/context. Danny reference classifications must follow product
+data policy rather than retrieval needs.
 
 The compilation probe uses the same public event contract with a
 reference-first `conversation.message` payload at

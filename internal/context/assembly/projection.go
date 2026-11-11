@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 )
 
@@ -27,7 +26,10 @@ type Reference struct {
 	Kind      string `json:"kind"`
 	Locator   string `json:"locator"`
 	Untrusted bool   `json:"untrusted"`
+	Trust     string `json:"trust,omitempty"`
 }
+
+// ProjectionLimits is retained for compatibility; Baymax owns final pressure.
 type ProjectionLimits struct{ MaxBytes int }
 type ProjectionRequest struct {
 	Role                           Role
@@ -36,77 +38,38 @@ type ProjectionRequest struct {
 	References                     []Reference
 	PrivateMemory                  string
 }
-type Handoff struct {
-	Version    string      `json:"version"`
-	Task       string      `json:"task"`
-	References []Reference `json:"references"`
-}
-type BudgetView struct {
-	MaxBytes  int  `json:"max_bytes"`
-	UsedBytes int  `json:"used_bytes"`
-	Compacted bool `json:"compacted"`
-}
 type Projection struct {
 	Role             Role        `json:"role"`
 	Prefix           string      `json:"prefix"`
 	CapabilityDigest string      `json:"capability_digest"`
 	Task             string      `json:"task,omitempty"`
-	History          []string    `json:"history,omitempty"`
 	References       []Reference `json:"references"`
-	PrivateMemory    string      `json:"private_memory,omitempty"`
-	Handoff          Handoff     `json:"handoff"`
-	Budget           BudgetView  `json:"budget"`
 	Digest           string      `json:"digest"`
 	Serialized       []byte      `json:"-"`
 }
-type Builder struct{ limits ProjectionLimits }
+type Builder struct{}
 
-func NewBuilder(limits ProjectionLimits) Builder {
-	if limits.MaxBytes <= 0 {
-		limits.MaxBytes = 4096
-	}
-	return Builder{limits: limits}
-}
+func NewBuilder(_ ProjectionLimits) Builder { return Builder{} }
 func (b Builder) Build(req ProjectionRequest) (Projection, error) {
 	if req.Role == "" || strings.TrimSpace(req.Prefix) == "" || strings.TrimSpace(req.CapabilityDigest) == "" {
 		return Projection{}, ErrProjectionInvalid
 	}
+	switch req.Role {
+	case RoleCoordinator, RoleContextReader, RoleKnowledgeNavigator, RoleSectionAnalyst, RoleCitationValidator, RoleTaskMemoryInterpreter:
+	default:
+		return Projection{}, ErrProjectionInvalid
+	}
 	references := append([]Reference(nil), req.References...)
 	for index := range references {
-		if references[index].Kind == "source" || references[index].Kind == "source_section" {
+		if references[index].Kind == "source" || references[index].Kind == "source_section" || references[index].Kind == "memory" || references[index].Kind == "generated" {
 			references[index].Untrusted = true
+			references[index].Trust = "untrusted"
 		}
 	}
-	p := Projection{Role: req.Role, Prefix: req.Prefix, CapabilityDigest: req.CapabilityDigest, Task: req.Task, History: append([]string(nil), req.History...), References: references, Handoff: Handoff{Version: "handoff.v1", Task: req.Task, References: append([]Reference(nil), references...)}, Budget: BudgetView{MaxBytes: b.limits.MaxBytes}}
-	// Role projections are an allowlist. Omitted fields remain addressable by
-	// reference and are never copied into a child prompt implicitly.
-	switch req.Role {
-	case RoleCoordinator:
-		p.PrivateMemory = req.PrivateMemory
-	case RoleContextReader:
-		p.PrivateMemory = ""
-	case RoleKnowledgeNavigator:
-		p.History = nil
-		p.PrivateMemory = ""
-	case RoleSectionAnalyst:
-		p.PrivateMemory = req.PrivateMemory
-	case RoleCitationValidator:
-		p.History = nil
-		p.PrivateMemory = ""
-	case RoleTaskMemoryInterpreter:
-		p.PrivateMemory = req.PrivateMemory
-	}
+	// History and private memory remain owned by Baymax/Stele and are not
+	// serialized into Danny's projection.
+	p := Projection{Role: req.Role, Prefix: req.Prefix, CapabilityDigest: req.CapabilityDigest, Task: req.Task, References: references}
 	p.Serialized = b.serialize(p)
-	if len(p.Serialized) > b.limits.MaxBytes {
-		p.History = nil
-		p.PrivateMemory = ""
-		p.Budget.Compacted = true
-		p.Serialized = b.serialize(p)
-	}
-	if len(p.Serialized) > b.limits.MaxBytes {
-		return Projection{}, fmt.Errorf("%w: projection exceeds limit", ErrProjectionInvalid)
-	}
-	p.Budget.UsedBytes = len(p.Serialized)
 	sum := sha256.Sum256(p.Serialized)
 	p.Digest = hex.EncodeToString(sum[:])
 	return p, nil

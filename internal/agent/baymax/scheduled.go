@@ -23,6 +23,8 @@ type ScheduledCommand struct {
 	EffectNamespace                                                        string
 	Instruction                                                            string
 	RetryLimit                                                             int
+	ParentRunID, CausationID, WriteScope                                   string
+	ResourceLimit                                                          int
 }
 
 func (c ScheduledCommand) Validate() error {
@@ -100,7 +102,14 @@ func (a SchedulerMailboxAdapter) DispatchDue(ctx context.Context, workerID strin
 		_, _ = a.Scheduler.Fail(ctx, scheduler.TerminalCommit{TaskID: claimed.Record.Task.TaskID, AttemptID: claimed.Attempt.AttemptID, Status: scheduler.TaskStateFailed, ErrorMessage: err.Error(), OutcomeKey: "invalid-command", CommittedAt: time.Now().UTC()})
 		return ScheduledCommand{}, true, err
 	}
-	_, err = a.Mailbox.PublishCommand(ctx, mailbox.Envelope{MessageID: command.OccurrenceID, IdempotencyKey: command.IdempotencyKey, CorrelationID: command.CorrelationID, Kind: mailbox.KindCommand, TaskID: command.OccurrenceID, RunID: command.CorrelationID, Payload: commandPayload(command)})
+	envelope := mailbox.Envelope{MessageID: command.OccurrenceID, IdempotencyKey: command.IdempotencyKey, CorrelationID: command.CorrelationID, Kind: mailbox.KindCommand, TaskID: command.OccurrenceID, RunID: command.CorrelationID, Payload: commandPayload(command)}
+	if command.ParentRunID != "" || command.CausationID != "" || command.WriteScope != "" || command.ResourceLimit > 0 {
+		if command.ParentRunID == "" || command.CausationID == "" || command.WriteScope == "" || command.ResourceLimit <= 0 {
+			return ScheduledCommand{}, true, ErrInvalidScheduledCommand
+		}
+		envelope.HostPlanBinding = &mailbox.HostPlanBinding{ContractVersion: mailbox.HostPlanBindingContractVersion, MessageID: command.OccurrenceID, IdempotencyKey: command.IdempotencyKey, RunID: command.CorrelationID, ParentRunID: command.ParentRunID, CausationID: command.CausationID, AuthorityDigest: command.CapabilityDigest, PlanDigest: command.PlanVersion, WriteScope: command.WriteScope, EffectNamespace: command.EffectNamespace, Occurrence: command.OccurrenceKey, HostCorrelation: command.CorrelationID, ResourceLimit: command.ResourceLimit}
+	}
+	_, err = a.Mailbox.PublishCommand(ctx, envelope)
 	if err != nil {
 		_, requeueErr := a.Scheduler.Requeue(ctx, claimed.Record.Task.TaskID, err.Error())
 		if requeueErr != nil {

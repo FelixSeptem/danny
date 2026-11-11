@@ -149,7 +149,13 @@ func steleSmoke(ctx context.Context) (runtimeprobe.Bundle, error) {
 	}
 	for _, probe := range probes {
 		corr := "stele:" + probe.name
-		out, _ := probe.call(ctx, runtimeprobe.ProbeRequest{CorrelationID: corr, ParentID: corr + ":parent", Input: "runtime probe memory continuity", Capability: probe.name})
+		request := runtimeprobe.ProbeRequest{CorrelationID: corr, ParentID: corr + ":parent", Input: "runtime probe memory continuity", Capability: probe.name}
+		var out runtimeprobe.ProbeOutcome
+		if probe.name == "context" {
+			out = steleContextProjection(ctx, client, request)
+		} else {
+			out, _ = probe.call(ctx, request)
+		}
 		events = append(events, out.Events...)
 	}
 	for i := range events {
@@ -157,6 +163,57 @@ func steleSmoke(ctx context.Context) (runtimeprobe.Bundle, error) {
 	}
 	bundle := runtimeprobe.Bundle{SchemaVersion: runtimeprobe.EvidenceSchemaVersion, BaymaxVersion: baymax.PinnedVersion, SteleVersion: client.Version(), Events: events}
 	return bundle, bundle.Validate()
+}
+
+// steleContextProjection exercises the current turn-bound provider/context
+// contract. It records only bounded contract evidence; references and provider
+// payloads never enter the runtime-probe artifact.
+func steleContextProjection(ctx context.Context, client *stele.Client, req runtimeprobe.ProbeRequest) runtimeprobe.ProbeOutcome {
+	now := time.Unix(0, 0).UTC()
+	parent := runtimeprobe.Event{Sequence: 1, ID: req.ParentID, Kind: runtimeprobe.KindParent, CorrelationID: req.CorrelationID, Capability: req.Capability, Status: runtimeprobe.StatusPassed, At: now}
+	turn, err := client.CreateTurn(ctx, req.CorrelationID+":turn", req.Input, 4)
+	if err != nil {
+		parent.Status = runtimeprobe.StatusFailedContract
+		return runtimeprobe.ProbeOutcome{Events: []runtimeprobe.Event{
+			parent,
+			{Sequence: 2, ID: req.ParentID + ":context", Kind: runtimeprobe.KindContext, ParentID: req.ParentID, CorrelationID: req.CorrelationID, Capability: req.Capability, Status: runtimeprobe.StatusFailedContract, At: now.Add(time.Nanosecond), Payload: map[string]string{"path": "/v1/provider/turns", "error": err.Error()}},
+			{Sequence: 3, ID: req.ParentID + ":context:terminal", Kind: runtimeprobe.KindTerminal, ParentID: req.ParentID + ":context", CorrelationID: req.CorrelationID, Capability: req.Capability, Status: runtimeprobe.StatusFailedContract, At: now.Add(2 * time.Nanosecond)},
+		}}
+	}
+	projection, err := client.BoundedProjection(ctx, stele.ProjectionRequest{
+		RunID: req.CorrelationID + ":projection", Query: req.Input, Budget: 4, MaxBytes: 16384, MaxReferences: 8,
+		Scope: strings.Join([]string{client.Tenant, client.Project, client.Namespace}, "/"), SessionID: client.SessionID,
+		TurnID: turn.ID, PolicyDigest: "runtimeprobe-policy-v1", ProjectionIntent: "task_context", ContinuityMode: "issue",
+	})
+	status := runtimeprobe.StatusPassed
+	payload := map[string]string{"path": "/v1/provider/context", "turn_id": turn.ID}
+	if err != nil {
+		status = runtimeprobe.StatusFailedContract
+		payload["error"] = err.Error()
+	} else {
+		payload["source_digest"] = projection.SourceDigest
+		payload["projection_digest"] = projection.Digest
+		payload["continuity"] = projection.Continuity.Outcome
+		payload["references"] = fmt.Sprint(len(projection.References))
+		comparison, compareErr := client.BoundedProjection(ctx, stele.ProjectionRequest{
+			RunID: req.CorrelationID + ":projection:compare", Query: req.Input, Budget: 4, MaxBytes: 16384, MaxReferences: 8,
+			Scope: strings.Join([]string{client.Tenant, client.Project, client.Namespace}, "/"), SessionID: client.SessionID,
+			TurnID: turn.ID, PolicyDigest: "runtimeprobe-policy-v1", ProjectionIntent: "task_context", ContinuityMode: "compare", ContinuityReference: projection.Continuity.Reference,
+		})
+		if compareErr != nil {
+			status = runtimeprobe.StatusFailedContract
+			payload["compare_error"] = compareErr.Error()
+		} else {
+			payload["continuity_compare"] = comparison.Continuity.Outcome
+			payload["compare_projection_digest"] = comparison.Digest
+		}
+	}
+	parent.Status = status
+	return runtimeprobe.ProbeOutcome{Events: []runtimeprobe.Event{
+		parent,
+		{Sequence: 2, ID: req.ParentID + ":context", Kind: runtimeprobe.KindContext, ParentID: req.ParentID, CorrelationID: req.CorrelationID, Capability: req.Capability, Status: status, At: now.Add(time.Nanosecond), Payload: payload},
+		{Sequence: 3, ID: req.ParentID + ":context:terminal", Kind: runtimeprobe.KindTerminal, ParentID: req.ParentID + ":context", CorrelationID: req.CorrelationID, Capability: req.Capability, Status: status, At: now.Add(2 * time.Nanosecond)},
+	}}
 }
 
 func envOr(name, fallback string) string {
