@@ -368,6 +368,8 @@ Milestones 1 and 2 can proceed in parallel after Milestone 0. The runtime probe 
 
 ## Milestone 9 — Agent UI protocol boundary
 
+**Status (2026-11-12): protocol boundary implemented; workbench deferred.** The change `agent-ui-protocol-boundary` shipped the AG-UI-compatible execution projection with durable replay/reconnect (`internal/agentui` + `internal/server` SSE transport, refresh-reconciliation snapshots, terminal framing, cancellation status), the restricted dynamic-surface catalog with version-independent `DynamicSurface`/`SurfaceAction`/`SurfaceSubmission` models, the server-side submission validator converging through `idempotency_effects`, and the A2UI v0.9.1 wire adapter with catalog-bound fixtures (`internal/agentui/testdata/`). Compatibility note: `docs/agent-ui-protocols.md` — A2UI v0.9.1 only, no v1.0 claims. The React workbench, live renderer certification, and deployment hardening remain in Milestone 10.
+
 **Purpose:** establish a stable browser-facing projection for Agent execution and controlled dynamic UI before implementing the full HTTP workbench. AG-UI is used for execution events; A2UI is used for declarative forms and interaction cards. Neither protocol becomes the source of truth for Danny tasks, memory, schedules, or business side effects.
 
 **AG-UI event projection:**

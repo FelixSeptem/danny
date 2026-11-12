@@ -74,7 +74,7 @@ var (
 	ErrReplayGap           = errors.New("storage: replay history gap")
 )
 
-const CurrentSchemaVersion = 9
+const CurrentSchemaVersion = 10
 
 const (
 	NativeEvidenceContractV1 = "danny.native-evidence.v1"
@@ -349,6 +349,8 @@ type TaskRepository interface {
 
 type EffectRepository interface {
 	Begin(context.Context, EffectKey, []byte) (EffectRecord, error)
+	// Lookup returns the recorded effect for a key without creating one.
+	Lookup(context.Context, EffectKey) (EffectRecord, bool, error)
 	Complete(context.Context, string, []byte) error
 	Fail(context.Context, string, []byte) error
 }

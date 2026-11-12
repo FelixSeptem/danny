@@ -74,6 +74,22 @@ func (r *taskRepository) Update(ctx context.Context, id string, expectedRevision
 
 type effectRepository struct{ store *Store }
 
+// Lookup returns the recorded effect for a key, or ok=false when absent.
+func (r *effectRepository) Lookup(ctx context.Context, key EffectKey) (EffectRecord, bool, error) {
+	var existing EffectRecord
+	var created, updated string
+	err := r.store.db.QueryRowContext(ctx, r.store.bind(`SELECT id,namespace,subject,effect_key,status,request,result,created_at,updated_at FROM idempotency_effects WHERE namespace=? AND subject=? AND effect_key=?`), key.Namespace, key.Subject, key.Key).Scan(&existing.ID, &existing.Key.Namespace, &existing.Key.Subject, &existing.Key.Key, &existing.Status, &existing.Request, &existing.Result, &created, &updated)
+	if errors.Is(err, sql.ErrNoRows) {
+		return EffectRecord{}, false, nil
+	}
+	if err != nil {
+		return EffectRecord{}, false, err
+	}
+	existing.CreatedAt, _ = time.Parse(time.RFC3339Nano, created)
+	existing.UpdatedAt, _ = time.Parse(time.RFC3339Nano, updated)
+	return existing, true, nil
+}
+
 func (r *effectRepository) Begin(ctx context.Context, key EffectKey, request []byte) (EffectRecord, error) {
 	var existing EffectRecord
 	var created, updated string

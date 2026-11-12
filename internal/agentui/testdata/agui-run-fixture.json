@@ -1,0 +1,49 @@
+[
+  {
+    "runId": "exec-1",
+    "threadId": "corr-1",
+    "type": "RunStarted"
+  },
+  {
+    "name": "danny.planner_decision",
+    "runId": "exec-1",
+    "threadId": "corr-1",
+    "type": "Custom",
+    "value": {
+      "authority_expanded": false,
+      "budget": 0,
+      "mode": "direct",
+      "parent_version": "",
+      "plan_version": "planner.v1",
+      "rationale": "simple",
+      "replan_reason": "",
+      "write_scope": 0
+    }
+  },
+  {
+    "name": "danny.observation",
+    "runId": "exec-1",
+    "threadId": "corr-1",
+    "type": "Custom",
+    "value": {
+      "child_run_id": "",
+      "diagnostic": "",
+      "effect_key": "exec-1:recovery:e1",
+      "failure_class": "",
+      "observation_position": 1,
+      "parent_run_id": "",
+      "plan_version": "",
+      "result": "",
+      "status": "succeeded"
+    }
+  },
+  {
+    "result": {
+      "result": "done",
+      "status": "succeeded"
+    },
+    "runId": "exec-1",
+    "threadId": "corr-1",
+    "type": "RunFinished"
+  }
+]

@@ -1,0 +1,43 @@
+{
+  "a2ui_version": "0.9.1",
+  "surface_id": "surface-deploy-confirm",
+  "revision": 3,
+  "catalog_version": "danny.catalog.v1",
+  "components": [
+    {
+      "type": "Card",
+      "props": {
+        "title": "Approve deployment"
+      },
+      "children": [
+        {
+          "type": "ChoiceChips",
+          "props": {
+            "options": "approve,reject"
+          }
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "confirm",
+      "input_schema": {
+        "required": [
+          "choice"
+        ],
+        "properties": {
+          "choice": {
+            "type": "string"
+          }
+        }
+      },
+      "policy_ref": "danny.policy.task.commit"
+    },
+    {
+      "id": "dismiss",
+      "input_schema": {},
+      "policy_ref": "danny.policy.read"
+    }
+  ]
+}
