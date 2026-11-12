@@ -1,0 +1,305 @@
+{
+  "schema_version": "runtime-probe.v1",
+  "baymax_version": "v0.0.0-20261110150429-cca95f31f71b",
+  "stele_version": "v0.0.0-20261111135338-19fc90134492",
+  "events": [
+    {
+      "sequence": 1,
+      "id": "live:direct:parent",
+      "kind": "parent",
+      "correlation_id": "live:direct",
+      "capability": "direct",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00Z"
+    },
+    {
+      "sequence": 2,
+      "id": "live:direct:parent:terminal",
+      "kind": "terminal",
+      "parent_id": "live:direct:parent",
+      "correlation_id": "live:direct",
+      "capability": "direct",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000001Z",
+      "payload": {
+        "iterations": "1",
+        "run_id": "live:direct:parent"
+      }
+    },
+    {
+      "sequence": 3,
+      "id": "live:child:parent",
+      "kind": "parent",
+      "correlation_id": "live:child",
+      "capability": "child",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00Z"
+    },
+    {
+      "sequence": 4,
+      "id": "live:child:child",
+      "kind": "child",
+      "parent_id": "live:child:parent",
+      "correlation_id": "live:child",
+      "capability": "child",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000001Z",
+      "payload": {
+        "native_history_durable": "true",
+        "run_id": "live-child-run",
+        "terminal_status": "succeeded"
+      }
+    },
+    {
+      "sequence": 5,
+      "id": "live:child:terminal",
+      "kind": "terminal",
+      "parent_id": "live:child:child",
+      "correlation_id": "live:child",
+      "capability": "child",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000002Z"
+    },
+    {
+      "sequence": 6,
+      "id": "live:team:parallel:parent",
+      "kind": "parent",
+      "correlation_id": "live:team:parallel",
+      "capability": "team_parallel",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00Z"
+    },
+    {
+      "sequence": 7,
+      "id": "live:team:parallel:team",
+      "kind": "team",
+      "parent_id": "live:team:parallel:parent",
+      "correlation_id": "live:team:parallel",
+      "capability": "team_parallel",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000001Z",
+      "payload": {
+        "member_count": "2",
+        "native_history_durable": "true",
+        "strategy": "parallel",
+        "team_id": "live:team:parallel:team"
+      }
+    },
+    {
+      "sequence": 8,
+      "id": "live:team:parallel:member:member-a",
+      "kind": "child",
+      "parent_id": "live:team:parallel:team",
+      "correlation_id": "live:team:parallel",
+      "capability": "team_parallel",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000002Z",
+      "payload": {
+        "failure_class": "none",
+        "member_id": "member-a",
+        "terminal_status": "succeeded"
+      }
+    },
+    {
+      "sequence": 9,
+      "id": "live:team:parallel:member:member-b",
+      "kind": "child",
+      "parent_id": "live:team:parallel:team",
+      "correlation_id": "live:team:parallel",
+      "capability": "team_parallel",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000003Z",
+      "payload": {
+        "failure_class": "none",
+        "member_id": "member-b",
+        "terminal_status": "succeeded"
+      }
+    },
+    {
+      "sequence": 10,
+      "id": "live:team:parallel:terminal",
+      "kind": "terminal",
+      "parent_id": "live:team:parallel:team",
+      "correlation_id": "live:team:parallel",
+      "capability": "team_parallel",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000004Z"
+    },
+    {
+      "sequence": 11,
+      "id": "live:team:vote:parent",
+      "kind": "parent",
+      "correlation_id": "live:team:vote",
+      "capability": "team_vote",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00Z"
+    },
+    {
+      "sequence": 12,
+      "id": "live:team:vote:team",
+      "kind": "team",
+      "parent_id": "live:team:vote:parent",
+      "correlation_id": "live:team:vote",
+      "capability": "team_vote",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000001Z",
+      "payload": {
+        "member_count": "2",
+        "native_history_durable": "true",
+        "strategy": "vote",
+        "team_id": "live:team:vote:team",
+        "winner_vote": "approve"
+      }
+    },
+    {
+      "sequence": 13,
+      "id": "live:team:vote:member:member-a",
+      "kind": "child",
+      "parent_id": "live:team:vote:team",
+      "correlation_id": "live:team:vote",
+      "capability": "team_vote",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000002Z",
+      "payload": {
+        "failure_class": "none",
+        "member_id": "member-a",
+        "terminal_status": "succeeded"
+      }
+    },
+    {
+      "sequence": 14,
+      "id": "live:team:vote:member:member-b",
+      "kind": "child",
+      "parent_id": "live:team:vote:team",
+      "correlation_id": "live:team:vote",
+      "capability": "team_vote",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000003Z",
+      "payload": {
+        "failure_class": "none",
+        "member_id": "member-b",
+        "terminal_status": "succeeded"
+      }
+    },
+    {
+      "sequence": 15,
+      "id": "live:team:vote:terminal",
+      "kind": "terminal",
+      "parent_id": "live:team:vote:team",
+      "correlation_id": "live:team:vote",
+      "capability": "team_vote",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000004Z"
+    },
+    {
+      "sequence": 16,
+      "id": "live:workflow:parent",
+      "kind": "parent",
+      "correlation_id": "live:workflow",
+      "capability": "workflow",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00Z"
+    },
+    {
+      "sequence": 17,
+      "id": "live:workflow:step:step-a",
+      "kind": "child",
+      "parent_id": "live:workflow:parent",
+      "correlation_id": "live:workflow",
+      "capability": "workflow",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000001Z",
+      "payload": {
+        "role": "worker",
+        "step_id": "step-a",
+        "terminal_status": "succeeded"
+      }
+    },
+    {
+      "sequence": 18,
+      "id": "live:workflow:step:step-b",
+      "kind": "child",
+      "parent_id": "live:workflow:parent",
+      "correlation_id": "live:workflow",
+      "capability": "workflow",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000002Z",
+      "payload": {
+        "role": "worker",
+        "step_id": "step-b",
+        "terminal_status": "succeeded"
+      }
+    },
+    {
+      "sequence": 19,
+      "id": "live:workflow:terminal",
+      "kind": "terminal",
+      "parent_id": "live:workflow:step:step-b",
+      "correlation_id": "live:workflow",
+      "capability": "workflow",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000003Z",
+      "payload": {
+        "execution_order": "step-a,step-b",
+        "native_history_durable": "true",
+        "step_count": "2",
+        "workflow_id": "live-workflow"
+      }
+    },
+    {
+      "sequence": 20,
+      "id": "live:mailbox:parent",
+      "kind": "parent",
+      "correlation_id": "live:mailbox",
+      "capability": "mailbox",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00Z"
+    },
+    {
+      "sequence": 21,
+      "id": "live:mailbox:mailbox",
+      "kind": "mailbox",
+      "parent_id": "live:mailbox:parent",
+      "correlation_id": "live:mailbox",
+      "capability": "mailbox",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000001Z",
+      "payload": {
+        "delivery_attempt": "1",
+        "mailbox_lifecycle": "acked",
+        "message_id": "live-message",
+        "terminal_status": "succeeded"
+      }
+    },
+    {
+      "sequence": 22,
+      "id": "live:mailbox:terminal",
+      "kind": "terminal",
+      "parent_id": "live:mailbox:mailbox",
+      "correlation_id": "live:mailbox",
+      "capability": "mailbox",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000002Z"
+    },
+    {
+      "sequence": 23,
+      "id": "live:stele:parent",
+      "kind": "parent",
+      "correlation_id": "live:stele",
+      "capability": "context",
+      "status": "skipped-unconfigured",
+      "at": "1970-01-01T00:00:00Z"
+    },
+    {
+      "sequence": 24,
+      "id": "live:stele:terminal",
+      "kind": "terminal",
+      "parent_id": "live:stele:parent",
+      "correlation_id": "live:stele",
+      "capability": "context",
+      "status": "skipped-unconfigured",
+      "at": "1970-01-01T00:00:00.000000001Z"
+    }
+  ],
+  "provider_compat": "stream-field-injected"
+}

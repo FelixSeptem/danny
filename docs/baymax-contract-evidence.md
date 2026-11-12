@@ -142,8 +142,20 @@ The 2026-11-11 refresh also rechecked the live-smoke prerequisites: no
 `OPENAI_BASE_URL`, `OPENAI_MODEL`, or `OPENAI_API_KEY` is configured, so no
 real OpenAI-compatible endpoint was contacted. The existing
 `testdata/runtimeprobe/baymax-live-smoke-unavailable.evidence.json` records
-that state for the previous pin; the current pin has no live evidence at all.
-Task 7.3 therefore remains incomplete acceptance.
+that state for the previous pin.
+
+On 2026-11-12 the live gate ran for real against an OpenAI-compatible gateway
+serving `agnes-3.0-flash` over `POST /v1/responses`. All six forms — direct,
+child, parallel team, vote team, workflow, mailbox — returned `passed` through
+Danny's authorized adapter on this pin:
+`testdata/runtimeprobe/baymax-live-smoke.evidence.json`. Two qualifications keep
+this from being a clean pass: the gateway requires an explicit `stream` field
+(the bundle carries `"provider_compat": "stream-field-injected"`, see
+`docs/runtime-probe.md`), and the Stele case in the same bundle is
+`skipped-unconfigured`. Live *pause restore* was not exercised either, so the
+capability manifest keeps child/team pause restore `unsupported` even though the
+running paths are now backed by real provider evidence. Task 7.3 therefore
+remains incomplete acceptance on the Stele side.
 
 ## Integration Wiring (2026-11-12)
 

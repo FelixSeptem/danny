@@ -49,8 +49,32 @@ not load a runtime credential, and a real service will reject it. Run
 On 2026-11-05 this command was run with `OPENAI_BASE_URL`, `OPENAI_MODEL`,
 and `OPENAI_API_KEY` unset. It returned `skipped-unconfigured` without
 contacting a provider; the result is recorded as incomplete acceptance in
-`testdata/runtimeprobe/baymax-live-smoke-unavailable.evidence.json`. This is
-not a substitute for the required real OpenAI-compatible smoke evidence.
+`testdata/runtimeprobe/baymax-live-smoke-unavailable.evidence.json`.
+
+On 2026-11-12 it was run for real against an OpenAI-compatible gateway that
+implements `POST /v1/responses` (`agnes-3.0-flash`). All six forms passed and
+the bundle is committed as
+`testdata/runtimeprobe/baymax-live-smoke.evidence.json`. The Stele case in that
+bundle is `skipped-unconfigured`, so task 7.3 remains incomplete on the Stele
+side.
+
+### Provider compatibility shim
+
+The 2026-11-12 run needed `DANNY_LIVE_PROVIDER_SHIM=stream-default`. That
+gateway treats an **omitted** `stream` field as a streaming call and then tries
+to JSON-decode the SSE body, answering `500 bad_response_body`
+(`invalid character 'd' looking for beginning of value`). Omitting `stream`
+means `false` in the Responses API and the pinned adapter omits it for
+non-streaming requests, so this is a provider defect rather than a Danny or
+Baymax one: the identical body with an explicit `"stream": false` succeeds.
+
+The shim is a loopback reverse proxy inside the harness. It forwards to the real
+endpoint untouched except for adding `"stream": false` when the field is absent;
+a request that already carries a stream flag is unmodified. It is opt-in, and
+when enabled the bundle records `"provider_compat": "stream-field-injected"`, so
+a passing run never looks like a clean conformance run. The marker survives
+redaction. Do not enable it against a conformant provider, and do not read a
+passing bundle as proof that the gateway is spec-conformant.
 
 For a real Stele-only probe against a PostgreSQL-backed service:
 
@@ -70,7 +94,9 @@ file and is never emitted into evidence.
 
 Evidence uses schema `runtime-probe.v1`. Sequence numbers are rewritten after
 combining probe cases, and validation rejects missing IDs, broken ancestor
-correlation, sequence gaps, and duplicate terminal events. Before writing an
+correlation, sequence gaps, and duplicate terminal events. `provider_compat` is
+an optional top-level field: absent means the provider was called as-is, a value
+means the harness adapted something on the way to it. Before writing an
 artifact, `runtimeprobe.Redact` replaces secrets and hashes sensitive or
 unbounded values. Credentials, authorization headers, prompts, and raw provider
 payloads must not be committed.

@@ -333,10 +333,19 @@ func liveSmoke(ctx context.Context) (runtimeprobe.Bundle, error) {
 	if err != nil {
 		return runtimeprobe.Bundle{}, err
 	}
+	// gatewayEndpoint is what Danny dials; providerCompat says whether the
+	// harness had to translate anything on the way to the real upstream.
+	gatewayEndpoint, providerCompat, shim, err := liveGateway(endpoint)
+	if err != nil {
+		return runtimeprobe.Bundle{}, err
+	}
+	if shim != nil {
+		defer func() { _ = shim.Close() }()
+	}
 	profile := &openaiadapter.EndpointProfile{
 		Version:  openaiadapter.EndpointProfileVersion,
 		ID:       "danny-runtime-probe",
-		Endpoint: endpoint,
+		Endpoint: gatewayEndpoint,
 		Model:    modelName,
 		APIShape: openaiadapter.ResponsesAPIShapeVersion,
 		Capabilities: map[openaiadapter.EndpointCapability]bmtypes.CapabilitySupport{
@@ -345,7 +354,7 @@ func liveSmoke(ctx context.Context) (runtimeprobe.Bundle, error) {
 			openaiadapter.EndpointCapabilityStreaming:        bmtypes.CapabilitySupportSupported,
 		},
 	}
-	model := openaiadapter.NewClient(openaiadapter.Config{APIKey: os.Getenv("OPENAI_API_KEY"), BaseURL: endpoint, Model: modelName, Profile: profile})
+	model := openaiadapter.NewClient(openaiadapter.Config{APIKey: os.Getenv("OPENAI_API_KEY"), BaseURL: gatewayEndpoint, Model: modelName, Profile: profile})
 	client, err := baymax.New(model)
 	if err != nil {
 		return runtimeprobe.Bundle{}, err
@@ -395,7 +404,7 @@ func liveSmoke(ctx context.Context) (runtimeprobe.Bundle, error) {
 	for index := range events {
 		events[index].Sequence = int64(index + 1)
 	}
-	bundle := runtimeprobe.Bundle{SchemaVersion: runtimeprobe.EvidenceSchemaVersion, BaymaxVersion: client.Version(), SteleVersion: stele.PinnedVersion, Events: events}
+	bundle := runtimeprobe.Bundle{SchemaVersion: runtimeprobe.EvidenceSchemaVersion, BaymaxVersion: client.Version(), SteleVersion: stele.PinnedVersion, Events: events, ProviderCompat: providerCompat}
 	if err := bundle.Validate(); err != nil {
 		return runtimeprobe.Bundle{}, err
 	}

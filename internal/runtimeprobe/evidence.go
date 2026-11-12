@@ -50,6 +50,10 @@ type Bundle struct {
 	BaymaxVersion string  `json:"baymax_version"`
 	SteleVersion  string  `json:"stele_version"`
 	Events        []Event `json:"events"`
+	// ProviderCompat records the deviation the harness had to absorb to reach
+	// the provider, so a passing bundle never hides that the provider was not
+	// spoken to on its own terms. Empty means the provider was called as-is.
+	ProviderCompat string `json:"provider_compat,omitempty"`
 }
 
 func (b Bundle) Validate() error {
