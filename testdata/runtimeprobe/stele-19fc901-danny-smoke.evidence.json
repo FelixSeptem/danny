@@ -1,0 +1,237 @@
+{
+  "schema_version": "runtime-probe.v1",
+  "baymax_version": "v0.0.0-20261110150429-cca95f31f71b",
+  "stele_version": "v0.0.0-20261111135338-19fc90134492",
+  "events": [
+    {
+      "sequence": 1,
+      "id": "stele:context:parent",
+      "kind": "parent",
+      "correlation_id": "stele:context",
+      "capability": "context",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00Z"
+    },
+    {
+      "sequence": 2,
+      "id": "stele:context:parent:context",
+      "kind": "context",
+      "parent_id": "stele:context:parent",
+      "correlation_id": "stele:context",
+      "capability": "context",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000001Z",
+      "payload": {
+        "compare_projection_digest": "4b5310800d372bc74295a566c6df0fa4d5ec515cbedd8b141da8c59dba877608",
+        "continuity": "issued",
+        "continuity_compare": "unchanged",
+        "path": "/v1/provider/context",
+        "projection_digest": "3dfd819bd7ccbb3092967d4b0934f7c11ca6e114188107d8bc8e708f3093bf1e",
+        "references": "0",
+        "source_digest": "21e47072b03550eaa31c74f1fdd58c4f10025e6cb56c70ed3463d95997a9024d",
+        "turn_id": "turn_b8106f73-c212-444b-bf3b-e8da9875668f"
+      }
+    },
+    {
+      "sequence": 3,
+      "id": "stele:context:parent:context:terminal",
+      "kind": "terminal",
+      "parent_id": "stele:context:parent:context",
+      "correlation_id": "stele:context",
+      "capability": "context",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000002Z"
+    },
+    {
+      "sequence": 4,
+      "id": "stele:memory:parent",
+      "kind": "parent",
+      "correlation_id": "stele:memory",
+      "capability": "memory",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00Z"
+    },
+    {
+      "sequence": 5,
+      "id": "stele:memory:parent:memory",
+      "kind": "memory",
+      "parent_id": "stele:memory:parent",
+      "correlation_id": "stele:memory",
+      "capability": "memory",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000001Z",
+      "payload": {
+        "event_id": "a766df81-b6ff-458a-b112-87f666adcab4",
+        "retrieve": "passed",
+        "retrieve_path": "/v1/provider/retrieve",
+        "write_path": "/v1/provider/events"
+      }
+    },
+    {
+      "sequence": 6,
+      "id": "stele:memory:parent:memory:terminal",
+      "kind": "terminal",
+      "parent_id": "stele:memory:parent:memory",
+      "correlation_id": "stele:memory",
+      "capability": "memory",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000002Z"
+    },
+    {
+      "sequence": 7,
+      "id": "stele:references:parent",
+      "kind": "parent",
+      "correlation_id": "stele:references",
+      "capability": "references",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00Z"
+    },
+    {
+      "sequence": 8,
+      "id": "stele:references:parent:references",
+      "kind": "memory",
+      "parent_id": "stele:references:parent",
+      "correlation_id": "stele:references",
+      "capability": "references",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000001Z",
+      "payload": {
+        "run_path": "runtimeprobe/runs/stele:references:run",
+        "run_reference_id": "6b960642-cdb4-4ab3-aaa8-c611f649f270",
+        "run_retrieved": "true",
+        "task_path": "runtimeprobe/tasks/stele:references:task",
+        "task_reference_id": "0fbfaba2-027e-4a42-a214-5d6aea8b3788",
+        "task_retrieved": "true"
+      }
+    },
+    {
+      "sequence": 9,
+      "id": "stele:references:parent:references:terminal",
+      "kind": "terminal",
+      "parent_id": "stele:references:parent:references",
+      "correlation_id": "stele:references",
+      "capability": "references",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000002Z"
+    },
+    {
+      "sequence": 10,
+      "id": "stele:compilation:parent",
+      "kind": "parent",
+      "correlation_id": "stele:compilation",
+      "capability": "compilation",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00Z"
+    },
+    {
+      "sequence": 11,
+      "id": "stele:compilation:parent:compilation",
+      "kind": "memory",
+      "parent_id": "stele:compilation:parent",
+      "correlation_id": "stele:compilation",
+      "capability": "compilation",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000001Z",
+      "payload": {
+        "first_event_id": "5098e637-daee-4d93-9dec-1c9e14e0fa7d",
+        "first_replayed": "false",
+        "reference_found": "true",
+        "reference_path": "knowledge/generations/987654321",
+        "replay_event_id": "5098e637-daee-4d93-9dec-1c9e14e0fa7d",
+        "replayed": "true"
+      }
+    },
+    {
+      "sequence": 12,
+      "id": "stele:compilation:parent:compilation:terminal",
+      "kind": "terminal",
+      "parent_id": "stele:compilation:parent:compilation",
+      "correlation_id": "stele:compilation",
+      "capability": "compilation",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000002Z"
+    },
+    {
+      "sequence": 13,
+      "id": "stele:restart:parent",
+      "kind": "parent",
+      "correlation_id": "stele:restart",
+      "capability": "restart",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00Z"
+    },
+    {
+      "sequence": 14,
+      "id": "stele:restart:parent:context",
+      "kind": "context",
+      "parent_id": "stele:restart:parent",
+      "correlation_id": "stele:restart",
+      "capability": "restart",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000001Z",
+      "payload": {
+        "path": "/v1/provider/context"
+      }
+    },
+    {
+      "sequence": 15,
+      "id": "stele:restart:parent:context:terminal",
+      "kind": "terminal",
+      "parent_id": "stele:restart:parent:context",
+      "correlation_id": "stele:restart",
+      "capability": "restart",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000002Z"
+    },
+    {
+      "sequence": 16,
+      "id": "stele:idempotent:parent",
+      "kind": "parent",
+      "correlation_id": "stele:idempotent",
+      "capability": "idempotent",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00Z"
+    },
+    {
+      "sequence": 17,
+      "id": "stele:idempotent:parent:memory:first",
+      "kind": "memory",
+      "parent_id": "stele:idempotent:parent",
+      "correlation_id": "stele:idempotent",
+      "capability": "idempotent",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000001Z",
+      "payload": {
+        "attempt": "first",
+        "event_id": "2bcf3efd-f58a-407d-9bed-f19f0fc26171",
+        "path": "/v1/provider/events"
+      }
+    },
+    {
+      "sequence": 18,
+      "id": "stele:idempotent:parent:memory:replay",
+      "kind": "memory",
+      "parent_id": "stele:idempotent:parent",
+      "correlation_id": "stele:idempotent",
+      "capability": "idempotent",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000002Z",
+      "payload": {
+        "attempt": "replay",
+        "event_id": "2bcf3efd-f58a-407d-9bed-f19f0fc26171",
+        "path": "/v1/provider/events",
+        "replayed": "true"
+      }
+    },
+    {
+      "sequence": 19,
+      "id": "stele:idempotent:parent:terminal",
+      "kind": "terminal",
+      "parent_id": "stele:idempotent:parent",
+      "correlation_id": "stele:idempotent",
+      "capability": "idempotent",
+      "status": "passed",
+      "at": "1970-01-01T00:00:00.000000003Z"
+    }
+  ]
+}

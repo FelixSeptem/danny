@@ -108,10 +108,21 @@ Public contract changes since `f38016e` include `corrections` in
 `ProviderCapabilityDocument.required`, `MemoryIntentCorrectionAttribution`,
 and the `versioned-context-projections` / `governed-memory-intents` /
 `runtime-memory-provider-contract` specifications. Danny does not consume
-`ProviderCapabilityDocument`, so these are not compile-time breaks, but the
-live-service reports above are bound to the old image digest and must not be
-read as evidence for the current pin. `exact_snapshot_replay` is still declared
-`false`, so `stele.context.snapshot-replay` remains `unsupported` and
-`stele.context.live-service` is now `incomplete` in the capability manifest.
-Re-running the fresh PostgreSQL 18 + pgvector initial/restart assurance and
-the Danny six-capability smoke on `19fc901` is part of task 7.3.
+`ProviderCapabilityDocument`, so these are not compile-time breaks. The
+live-service reports above remain bound to the old image digest and are kept
+as prior-pin evidence only. `exact_snapshot_replay` is still declared `false`,
+so `stele.context.snapshot-replay` remains `unsupported`.
+
+On 2026-11-12 the current pin was verified against a real service: a fresh
+PostgreSQL 18 + pgvector 0.8.6 compose stack ran image
+`danny-stele-verify:local` (sha256 `e1c0cdb2cf16…`, built from the local
+`19fc901` checkout), and Danny's six-capability smoke passed — context
+(turn continuity `issued`/`unchanged` with matching projection digest), memory
+retrieve, task/run reference retrieval, compilation replay, restart, and
+idempotent event replay — recorded in
+`testdata/runtimeprobe/stele-19fc901-danny-smoke.evidence.json`. This
+completes the Stele side of task 7.3; `stele.context.live-service` is
+`verified` in the capability manifest. The orchestration was driven by an
+equivalent Python port of `scripts/stele-danny-smoke.ps1` because the sandbox
+in that session could not execute native executables from PowerShell; the
+PowerShell script remains the canonical entry point outside that constraint.

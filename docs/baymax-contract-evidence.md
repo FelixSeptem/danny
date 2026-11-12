@@ -154,8 +154,12 @@ this from being a clean pass: the gateway requires an explicit `stream` field
 `docs/runtime-probe.md`), and the Stele case in the same bundle is
 `skipped-unconfigured`. Live *pause restore* was not exercised either, so the
 capability manifest keeps child/team pause restore `unsupported` even though the
-running paths are now backed by real provider evidence. Task 7.3 therefore
-remains incomplete acceptance on the Stele side.
+running paths are now backed by real provider evidence. The Stele half of the
+gate is covered separately: on the same day a fresh PostgreSQL 18 + pgvector
+0.8.6 compose stack served the pinned `19fc901` image and Danny's six-capability
+`stele-smoke` passed (`testdata/runtimeprobe/stele-19fc901-danny-smoke.evidence.json`).
+Task 7.3 is therefore complete; the remaining exit-gate gap is live pause
+restore, not live service evidence.
 
 ## Integration Wiring (2026-11-12)
 

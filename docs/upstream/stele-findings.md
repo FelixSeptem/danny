@@ -203,6 +203,27 @@ Danny 的 provider/context 适配器已由
 上文 `f38016e` 的 Stele 官方 fresh PostgreSQL/pgvector initial/restart
 assurance 与 Danny 六项端到端 smoke 属于**历史证据**，文件保留不改；
 `STELE-007` 仍为已解除状态，未发现新的上游缺陷。
+
+#### 2026-11-12 当前 pin live 复核
+
+- **复核 pin：** Stele `v0.0.0-20261111135338-19fc90134492`，镜像
+  `danny-stele-verify:local`（sha256 `e1c0cdb2cf16…`，由本地 `19fc901` checkout 构建）。
+- **复核环境：** 随机隔离 Compose 项目、全新 PostgreSQL 18 + pgvector 0.8.6 数据库、
+  官方 bootstrap 流程生成的 public runtime credential 与 exact-scope
+  `memory-reference-v1` disclosure grant，运行结束后隔离资源与临时凭证已清理。
+- **结果：** Danny `stele-smoke` 六项 capability 全部 `passed`：context
+  （turn continuity `issued`/`unchanged`，投影 digest 一致）、memory retrieve、
+  task/run references exact-path 检索、compilation replay、restart、
+  idempotent event replay（同 event_id，`replayed=true`）。
+- **证据：** `testdata/runtimeprobe/stele-19fc901-danny-smoke.evidence.json`。
+  `stele.context.live-service` 已升级为 `verified`（见
+  `testdata/runtimeprobe/stele-capabilities.json`）。
+- **编排说明：** 本次由 `scripts/stele-danny-smoke.ps1` 的等价 Python 移植驱动
+  （当时沙箱无法在 PowerShell 中执行原生可执行文件）；PS 脚本仍是规范入口。
+- **未发现新缺陷：** 无新增 finding。`exact_snapshot_replay` 在
+  `openapi/provider_context.go` 仍为 `enum: [false]`，
+  `stele.context.snapshot-replay` 保持 `unsupported`，该能力缺口仍待上游实现
+  服务端快照重放后才可解除。
 `testdata/runtimeprobe/stele-capabilities.json` 中的
 `stele.context.live-service` 已标为 `incomplete`：当前 pin 尚未在真实
 PostgreSQL/pgvector 服务上重跑，属 OpenSpec 任务 7.3 的验收范围。

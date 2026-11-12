@@ -75,22 +75,29 @@ the second is narrowed to the missing live gate, not to missing Danny wiring.
 The capability manifest still marks child/team pause restore `unsupported`
 because promoting it would need the real integration path.
 
-Task 7.3 is now half-done. On 2026-11-12 the live smoke ran for real against an
-OpenAI-compatible gateway (`agnes-3.0-flash`, `POST /v1/responses`) and all six
-forms passed through the authorized adapter; the bundle is
-`testdata/runtimeprobe/baymax-live-smoke.evidence.json`. It is not a clean pass:
-the gateway needs an explicit `stream` field, so the bundle records
-`"provider_compat": "stream-field-injected"`, and the Stele case is still
-`skipped-unconfigured`. Task 7.3 stays open until a real pinned Stele service
-covers scoped context, provenance, session/turn continuity and restart-idempotent
-memory; tasks 8.2 and 8.3 cannot be checked until then.
+Task 7.3 is complete as of 2026-11-12, in two halves. The Baymax half ran for
+real against an OpenAI-compatible gateway (`agnes-3.0-flash`,
+`POST /v1/responses`) with all six forms passing through the authorized adapter
+(`testdata/runtimeprobe/baymax-live-smoke.evidence.json`); it is not a clean
+pass — the gateway needs an explicit `stream` field, so the bundle records
+`"provider_compat": "stream-field-injected"`. The Stele half ran against a real
+pinned service: a fresh PostgreSQL 18 + pgvector 0.8.6 compose stack served the
+`19fc901` pin from image `danny-stele-verify:local`, and all six capabilities
+(context continuity, memory retrieve, references, compilation replay, restart,
+idempotent replay) passed
+(`testdata/runtimeprobe/stele-19fc901-danny-smoke.evidence.json`). Live *pause
+restore* was not exercised in either half, so the capability manifest keeps
+child/team pause restore `unsupported`; tasks 8.2 and 8.3 stay open because the
+Milestone 9 handoff still needs the complete exit gate.
 
 The live harness is no longer direct-only. `cmd/runtime-probe live-smoke` now
 runs `direct`, `child`, `team_parallel`, `team_vote`, `workflow` and `mailbox`
 through Danny's authorized adapter against the configured endpoint, with
 `DANNY_LIVE_FORMS` to re-run a subset. A failing form records
 `failed-contract`, keeps the evidence of the forms that passed, and exits
-non-zero. What is still missing is the Stele service, not the coverage.
+non-zero. The Stele service half is now covered by the same harness family:
+`go run ./cmd/runtime-probe stele-smoke` against the pinned service produced
+`testdata/runtimeprobe/stele-19fc901-danny-smoke.evidence.json`.
 
 `DANNY_LIVE_PROVIDER_SHIM=stream-default` adds a loopback proxy that fills in
 the spec-default `"stream": false` for gateways that mis-handle an omitted flag;
@@ -99,7 +106,7 @@ adaptation is visible instead of looking like conformance.
 
 - [x] 7.1 Extend deterministic contracts for all six execution forms, native tools/events, planning, context trust/budgets, product revision conflicts, and Run/Stream aggregation/terminal parity; verify each new or modified spec scenario is covered by an assertion or explicit pinned contract evidence.
 - [x] 7.2 Run restart/crash/concurrency acceptance on SQLite and PostgreSQL for event/cursor transactions, native recovery bindings, context snapshots, scheduled effects, generation commits, and pending outboxes; verify shared observable results and no duplicate logical mutations or fabricated replay history.
-- [ ] 7.3 Capture real OpenAI-compatible smoke evidence for applicable direct/child/team/workflow/mailbox paths and a real pinned Stele service for scoped context, provenance, session/turn continuity, and restart-idempotent memory; verify every availability claim has real correlation/pin/evidence and unavailable credentials or services are recorded as incomplete acceptance.
+- [x] 7.3 Capture real OpenAI-compatible smoke evidence for applicable direct/child/team/workflow/mailbox paths and a real pinned Stele service for scoped context, provenance, session/turn continuity, and restart-idempotent memory; verify every availability claim has real correlation/pin/evidence and unavailable credentials or services are recorded as incomplete acceptance.
 - [x] 7.4 Run Go formatting/static checks, `go test ./...`, the applicable race/integration checks, `golangci-lint run ./...` using `.golangci.yml`, and existing provider/documentation checks; verify all required checks pass and new imports remain within public adapter boundaries.
 
 ## 8. Documentation and Milestone Handoff

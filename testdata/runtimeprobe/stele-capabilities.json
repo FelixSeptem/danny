@@ -48,10 +48,10 @@
     {
       "id": "stele.context.live-service",
       "dependency": "stele",
-      "status": "incomplete",
+      "status": "verified",
       "public_contract": "Pinned PostgreSQL-backed provider runtime/context service",
-      "evidence": ["testdata/runtimeprobe/stele-f38016-live.evidence.json", "testdata/runtimeprobe/stele-f38016-reference.evidence.json", "testdata/runtimeprobe/stele-f38016-projection.evidence.json", "docs/stele-context-evidence.md"],
-      "notes": "The historical f38016e pin passed fresh PostgreSQL 18 + pgvector initial/restart verification for provider context, durable references, and runtime feedback projections. Those reports are retained but do not cover the current 19fc901 pin: no live service smoke has been rerun since the 2026-11-11 upgrade, so acceptance stays incomplete under OpenSpec task 7.3. Omitted source_metadata defaults to untrusted/restricted and is excluded from public retrieval/context."
+      "evidence": ["testdata/runtimeprobe/stele-19fc901-danny-smoke.evidence.json", "testdata/runtimeprobe/stele-f38016-live.evidence.json", "testdata/runtimeprobe/stele-f38016-reference.evidence.json", "testdata/runtimeprobe/stele-f38016-projection.evidence.json", "docs/stele-context-evidence.md"],
+      "notes": "On 2026-11-12 a fresh PostgreSQL 18 + pgvector 0.8.6 compose stack served the current 19fc901 pin from image danny-stele-verify:local (sha256:e1c0cdb2cf16...), and Danny's six-capability stele-smoke passed: context (turn continuity issued/unchanged with matching projection digest), memory retrieve, task/run reference retrieval, compilation replay, restart, and idempotent event replay. The historical f38016e reports are retained as prior-pin evidence. Omitted source_metadata defaults to untrusted/restricted and is excluded from public retrieval/context."
     }
   ]
 }
