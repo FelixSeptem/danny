@@ -27,7 +27,16 @@ func TestPoliciesHaveDistinctCapabilitiesAndScopes(t *testing.T) {
 }
 
 func TestPlannerProducesDeterministicPlansAndRejectsUnsupportedModes(t *testing.T) {
-	planner := NewPlanner("planner.v1")
+	// The default manifest now verifies every form, so the fail-closed
+	// rejection path is exercised against an explicit manifest that marks
+	// fanout and parallel teams unsupported.
+	manifest := runtimeboundary.DefaultCapabilityManifest()
+	for i := range manifest.Capabilities {
+		if manifest.Capabilities[i].Form == runtimeboundary.FormSubagent || manifest.Capabilities[i].Form == runtimeboundary.FormParallelTeam {
+			manifest.Capabilities[i].Status = runtimeboundary.CapabilityUnsupported
+		}
+	}
+	planner := NewPlannerWithManifest("planner.v1", runtimeboundary.NewCapabilityManifest(manifest.Capabilities))
 	profile := TaskProfile{Objective: "summarize", Complexity: 1, Parallelism: 1, Budget: 1000}
 	one, err := planner.Plan(context.Background(), profile)
 	if err != nil {

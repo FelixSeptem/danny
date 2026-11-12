@@ -3,7 +3,6 @@ package runtimeboundary
 import (
 	"encoding/json"
 	"errors"
-	"strings"
 	"testing"
 )
 
@@ -36,8 +35,8 @@ func TestCapabilityManifestCoversFormsAndRecordsModeSpecificEvidence(t *testing.
 		}
 	}
 	parallel, _ := manifest.Lookup(FormParallelTeam)
-	if parallel.Status != CapabilityUnsupported || !strings.Contains(parallel.Reason, "pause/restore") {
-		t.Fatalf("parallel capability incorrectly advertised: %#v", parallel)
+	if parallel.Status != CapabilityVerified || parallel.Evidence != "testdata/runtimeprobe/baymax-live-pause-restore.evidence.json" {
+		t.Fatalf("parallel capability not backed by live pause/restore evidence: %#v", parallel)
 	}
 }
 

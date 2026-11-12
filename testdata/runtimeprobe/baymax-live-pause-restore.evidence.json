@@ -1,0 +1,647 @@
+{
+  "schema_version": "runtime-probe.v1",
+  "baymax_version": "v0.0.0-20261110150429-cca95f31f71b",
+  "stele_version": "v0.0.0-20261111135338-19fc90134492",
+  "events": [
+    {
+      "sequence": 1,
+      "id": "live-pr:child:input_required:parent",
+      "kind": "parent",
+      "correlation_id": "live-pr:child:input_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:40:32.5086097Z"
+    },
+    {
+      "sequence": 2,
+      "id": "live-pr:child:input_required:paused",
+      "kind": "child",
+      "parent_id": "live-pr:child:input_required:parent",
+      "correlation_id": "live-pr:child:input_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:40:32.6979249Z",
+      "payload": {
+        "checkpoint_id": "child-87a2782216e2744f89da68d855a45340",
+        "pause_model_runs": "0",
+        "pause_reason": "input_required"
+      }
+    },
+    {
+      "sequence": 3,
+      "id": "live-pr:child:input_required:restored",
+      "kind": "child",
+      "parent_id": "live-pr:child:input_required:paused",
+      "correlation_id": "live-pr:child:input_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:40:36.8804934Z",
+      "payload": {
+        "duplicate_converged": "true",
+        "duplicate_model_runs": "0",
+        "duplicate_resumer_calls": "0",
+        "duplicate_status": "succeeded",
+        "restore_model_runs": "1",
+        "restore_resumer_calls": "0",
+        "restore_status": "succeeded"
+      }
+    },
+    {
+      "sequence": 4,
+      "id": "live-pr:child:input_required:terminal",
+      "kind": "terminal",
+      "parent_id": "live-pr:child:input_required:restored",
+      "correlation_id": "live-pr:child:input_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:40:36.8804934Z"
+    },
+    {
+      "sequence": 5,
+      "id": "live-pr:child:approval_required:parent",
+      "kind": "parent",
+      "correlation_id": "live-pr:child:approval_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:40:51.8809831Z"
+    },
+    {
+      "sequence": 6,
+      "id": "live-pr:child:approval_required:paused",
+      "kind": "child",
+      "parent_id": "live-pr:child:approval_required:parent",
+      "correlation_id": "live-pr:child:approval_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:40:52.0586878Z",
+      "payload": {
+        "checkpoint_id": "child-e12e54ed91e9de5fc4203e6fd00ebc47",
+        "pause_model_runs": "0",
+        "pause_reason": "approval_required"
+      }
+    },
+    {
+      "sequence": 7,
+      "id": "live-pr:child:approval_required:restored",
+      "kind": "child",
+      "parent_id": "live-pr:child:approval_required:paused",
+      "correlation_id": "live-pr:child:approval_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:40:56.4899215Z",
+      "payload": {
+        "duplicate_converged": "true",
+        "duplicate_model_runs": "0",
+        "duplicate_resumer_calls": "0",
+        "duplicate_status": "succeeded",
+        "restore_model_runs": "1",
+        "restore_resumer_calls": "0",
+        "restore_status": "succeeded"
+      }
+    },
+    {
+      "sequence": 8,
+      "id": "live-pr:child:approval_required:terminal",
+      "kind": "terminal",
+      "parent_id": "live-pr:child:approval_required:restored",
+      "correlation_id": "live-pr:child:approval_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:40:56.4899215Z"
+    },
+    {
+      "sequence": 9,
+      "id": "live-pr:child:budget_exhausted:parent",
+      "kind": "parent",
+      "correlation_id": "live-pr:child:budget_exhausted",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:41:11.4903519Z"
+    },
+    {
+      "sequence": 10,
+      "id": "live-pr:child:budget_exhausted:paused",
+      "kind": "child",
+      "parent_id": "live-pr:child:budget_exhausted:parent",
+      "correlation_id": "live-pr:child:budget_exhausted",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:41:11.6661163Z",
+      "payload": {
+        "checkpoint_id": "child-a20743ff3bce4e60e7e1554df919d6ca",
+        "pause_model_runs": "0",
+        "pause_reason": "budget_exhausted"
+      }
+    },
+    {
+      "sequence": 11,
+      "id": "live-pr:child:budget_exhausted:restored",
+      "kind": "child",
+      "parent_id": "live-pr:child:budget_exhausted:paused",
+      "correlation_id": "live-pr:child:budget_exhausted",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:41:15.033234Z",
+      "payload": {
+        "duplicate_converged": "true",
+        "duplicate_model_runs": "0",
+        "duplicate_resumer_calls": "0",
+        "duplicate_status": "succeeded",
+        "restore_model_runs": "1",
+        "restore_resumer_calls": "0",
+        "restore_status": "succeeded"
+      }
+    },
+    {
+      "sequence": 12,
+      "id": "live-pr:child:budget_exhausted:terminal",
+      "kind": "terminal",
+      "parent_id": "live-pr:child:budget_exhausted:restored",
+      "correlation_id": "live-pr:child:budget_exhausted",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:41:15.033234Z"
+    },
+    {
+      "sequence": 13,
+      "id": "live-pr:team_parallel:input_required:parent",
+      "kind": "parent",
+      "correlation_id": "live-pr:team_parallel:input_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:41:30.0340607Z"
+    },
+    {
+      "sequence": 14,
+      "id": "live-pr:team_parallel:input_required:paused",
+      "kind": "team",
+      "parent_id": "live-pr:team_parallel:input_required:parent",
+      "correlation_id": "live-pr:team_parallel:input_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:41:30.0866604Z",
+      "payload": {
+        "checkpoint_id": "team-e1f971b398026d9144b6b81fab9a873d",
+        "pause_model_runs": "0",
+        "pause_reason": "input_required"
+      }
+    },
+    {
+      "sequence": 15,
+      "id": "live-pr:team_parallel:input_required:restored",
+      "kind": "team",
+      "parent_id": "live-pr:team_parallel:input_required:paused",
+      "correlation_id": "live-pr:team_parallel:input_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:41:37.1018703Z",
+      "payload": {
+        "duplicate_converged": "true",
+        "duplicate_model_runs": "0",
+        "duplicate_resumer_calls": "0",
+        "duplicate_status": "succeeded",
+        "restore_model_runs": "2",
+        "restore_resumer_calls": "0",
+        "restore_status": "succeeded"
+      }
+    },
+    {
+      "sequence": 16,
+      "id": "live-pr:team_parallel:input_required:terminal",
+      "kind": "terminal",
+      "parent_id": "live-pr:team_parallel:input_required:restored",
+      "correlation_id": "live-pr:team_parallel:input_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:41:37.1018703Z"
+    },
+    {
+      "sequence": 17,
+      "id": "live-pr:team_parallel:approval_required:parent",
+      "kind": "parent",
+      "correlation_id": "live-pr:team_parallel:approval_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:41:52.10226Z"
+    },
+    {
+      "sequence": 18,
+      "id": "live-pr:team_parallel:approval_required:paused",
+      "kind": "team",
+      "parent_id": "live-pr:team_parallel:approval_required:parent",
+      "correlation_id": "live-pr:team_parallel:approval_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:41:52.1512331Z",
+      "payload": {
+        "checkpoint_id": "team-20bef19fd861d359d7ca5fdc153f175f",
+        "pause_model_runs": "0",
+        "pause_reason": "approval_required"
+      }
+    },
+    {
+      "sequence": 19,
+      "id": "live-pr:team_parallel:approval_required:restored",
+      "kind": "team",
+      "parent_id": "live-pr:team_parallel:approval_required:paused",
+      "correlation_id": "live-pr:team_parallel:approval_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:41:55.2941832Z",
+      "payload": {
+        "duplicate_converged": "true",
+        "duplicate_model_runs": "0",
+        "duplicate_resumer_calls": "0",
+        "duplicate_status": "succeeded",
+        "restore_model_runs": "2",
+        "restore_resumer_calls": "0",
+        "restore_status": "succeeded"
+      }
+    },
+    {
+      "sequence": 20,
+      "id": "live-pr:team_parallel:approval_required:terminal",
+      "kind": "terminal",
+      "parent_id": "live-pr:team_parallel:approval_required:restored",
+      "correlation_id": "live-pr:team_parallel:approval_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:41:55.2941832Z"
+    },
+    {
+      "sequence": 21,
+      "id": "live-pr:team_parallel:budget_exhausted:parent",
+      "kind": "parent",
+      "correlation_id": "live-pr:team_parallel:budget_exhausted",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:42:10.2948321Z"
+    },
+    {
+      "sequence": 22,
+      "id": "live-pr:team_parallel:budget_exhausted:paused",
+      "kind": "team",
+      "parent_id": "live-pr:team_parallel:budget_exhausted:parent",
+      "correlation_id": "live-pr:team_parallel:budget_exhausted",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:42:10.3453495Z",
+      "payload": {
+        "checkpoint_id": "team-139940bddb282f1ffc955f1d671947a3",
+        "pause_model_runs": "0",
+        "pause_reason": "budget_exhausted"
+      }
+    },
+    {
+      "sequence": 23,
+      "id": "live-pr:team_parallel:budget_exhausted:restored",
+      "kind": "team",
+      "parent_id": "live-pr:team_parallel:budget_exhausted:paused",
+      "correlation_id": "live-pr:team_parallel:budget_exhausted",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:42:19.5831606Z",
+      "payload": {
+        "duplicate_converged": "true",
+        "duplicate_model_runs": "0",
+        "duplicate_resumer_calls": "0",
+        "duplicate_status": "succeeded",
+        "restore_model_runs": "2",
+        "restore_resumer_calls": "0",
+        "restore_status": "succeeded"
+      }
+    },
+    {
+      "sequence": 24,
+      "id": "live-pr:team_parallel:budget_exhausted:terminal",
+      "kind": "terminal",
+      "parent_id": "live-pr:team_parallel:budget_exhausted:restored",
+      "correlation_id": "live-pr:team_parallel:budget_exhausted",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:42:19.5831606Z"
+    },
+    {
+      "sequence": 25,
+      "id": "live-pr:team_vote:input_required:parent",
+      "kind": "parent",
+      "correlation_id": "live-pr:team_vote:input_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:42:34.583861Z"
+    },
+    {
+      "sequence": 26,
+      "id": "live-pr:team_vote:input_required:paused",
+      "kind": "team",
+      "parent_id": "live-pr:team_vote:input_required:parent",
+      "correlation_id": "live-pr:team_vote:input_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:42:34.6326365Z",
+      "payload": {
+        "checkpoint_id": "team-e86b45cf153f877534e721fd3a48d31f",
+        "pause_model_runs": "0",
+        "pause_reason": "input_required"
+      }
+    },
+    {
+      "sequence": 27,
+      "id": "live-pr:team_vote:input_required:restored",
+      "kind": "team",
+      "parent_id": "live-pr:team_vote:input_required:paused",
+      "correlation_id": "live-pr:team_vote:input_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:42:38.7949018Z",
+      "payload": {
+        "duplicate_converged": "true",
+        "duplicate_model_runs": "0",
+        "duplicate_resumer_calls": "0",
+        "duplicate_status": "succeeded",
+        "restore_model_runs": "2",
+        "restore_resumer_calls": "0",
+        "restore_status": "succeeded",
+        "winner_vote": "approve"
+      }
+    },
+    {
+      "sequence": 28,
+      "id": "live-pr:team_vote:input_required:terminal",
+      "kind": "terminal",
+      "parent_id": "live-pr:team_vote:input_required:restored",
+      "correlation_id": "live-pr:team_vote:input_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:42:38.7949018Z"
+    },
+    {
+      "sequence": 29,
+      "id": "live-pr:team_vote:approval_required:parent",
+      "kind": "parent",
+      "correlation_id": "live-pr:team_vote:approval_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:42:53.7952811Z"
+    },
+    {
+      "sequence": 30,
+      "id": "live-pr:team_vote:approval_required:paused",
+      "kind": "team",
+      "parent_id": "live-pr:team_vote:approval_required:parent",
+      "correlation_id": "live-pr:team_vote:approval_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:42:53.8432482Z",
+      "payload": {
+        "checkpoint_id": "team-82b34b5a47d788001d83cbd0959dfdc8",
+        "pause_model_runs": "0",
+        "pause_reason": "approval_required"
+      }
+    },
+    {
+      "sequence": 31,
+      "id": "live-pr:team_vote:approval_required:restored",
+      "kind": "team",
+      "parent_id": "live-pr:team_vote:approval_required:paused",
+      "correlation_id": "live-pr:team_vote:approval_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:42:58.1019952Z",
+      "payload": {
+        "duplicate_converged": "true",
+        "duplicate_model_runs": "0",
+        "duplicate_resumer_calls": "0",
+        "duplicate_status": "succeeded",
+        "restore_model_runs": "2",
+        "restore_resumer_calls": "0",
+        "restore_status": "succeeded",
+        "winner_vote": "approve"
+      }
+    },
+    {
+      "sequence": 32,
+      "id": "live-pr:team_vote:approval_required:terminal",
+      "kind": "terminal",
+      "parent_id": "live-pr:team_vote:approval_required:restored",
+      "correlation_id": "live-pr:team_vote:approval_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:42:58.1019952Z"
+    },
+    {
+      "sequence": 33,
+      "id": "live-pr:team_vote:budget_exhausted:parent",
+      "kind": "parent",
+      "correlation_id": "live-pr:team_vote:budget_exhausted",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:43:13.1023704Z"
+    },
+    {
+      "sequence": 34,
+      "id": "live-pr:team_vote:budget_exhausted:paused",
+      "kind": "team",
+      "parent_id": "live-pr:team_vote:budget_exhausted:parent",
+      "correlation_id": "live-pr:team_vote:budget_exhausted",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:43:13.1527357Z",
+      "payload": {
+        "checkpoint_id": "team-08b90a82c9a4489defc80ea81975bd68",
+        "pause_model_runs": "0",
+        "pause_reason": "budget_exhausted"
+      }
+    },
+    {
+      "sequence": 35,
+      "id": "live-pr:team_vote:budget_exhausted:restored",
+      "kind": "team",
+      "parent_id": "live-pr:team_vote:budget_exhausted:paused",
+      "correlation_id": "live-pr:team_vote:budget_exhausted",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:43:21.1211887Z",
+      "payload": {
+        "duplicate_converged": "true",
+        "duplicate_model_runs": "0",
+        "duplicate_resumer_calls": "0",
+        "duplicate_status": "succeeded",
+        "restore_model_runs": "2",
+        "restore_resumer_calls": "0",
+        "restore_status": "succeeded",
+        "winner_vote": "approve"
+      }
+    },
+    {
+      "sequence": 36,
+      "id": "live-pr:team_vote:budget_exhausted:terminal",
+      "kind": "terminal",
+      "parent_id": "live-pr:team_vote:budget_exhausted:restored",
+      "correlation_id": "live-pr:team_vote:budget_exhausted",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:43:21.1211887Z"
+    },
+    {
+      "sequence": 37,
+      "id": "live-pr:mailbox:input_required:parent",
+      "kind": "parent",
+      "correlation_id": "live-pr:mailbox:input_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:43:36.1220171Z"
+    },
+    {
+      "sequence": 38,
+      "id": "live-pr:mailbox:input_required:paused",
+      "kind": "mailbox",
+      "parent_id": "live-pr:mailbox:input_required:parent",
+      "correlation_id": "live-pr:mailbox:input_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:43:38.7959979Z",
+      "payload": {
+        "checkpoint_id": "mailbox-7453a1fbe1b045bd1cf957ec53aa1544",
+        "pause_model_runs": "0",
+        "pause_reason": "input_required"
+      }
+    },
+    {
+      "sequence": 39,
+      "id": "live-pr:mailbox:input_required:restored",
+      "kind": "mailbox",
+      "parent_id": "live-pr:mailbox:input_required:paused",
+      "correlation_id": "live-pr:mailbox:input_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:43:42.3495726Z",
+      "payload": {
+        "duplicate_converged": "true",
+        "duplicate_model_runs": "0",
+        "duplicate_resumer_calls": "0",
+        "duplicate_status": "acked",
+        "restore_model_runs": "1",
+        "restore_resumer_calls": "1",
+        "restore_status": "acked"
+      }
+    },
+    {
+      "sequence": 40,
+      "id": "live-pr:mailbox:input_required:terminal",
+      "kind": "terminal",
+      "parent_id": "live-pr:mailbox:input_required:restored",
+      "correlation_id": "live-pr:mailbox:input_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:43:42.3495726Z"
+    },
+    {
+      "sequence": 41,
+      "id": "live-pr:mailbox:approval_required:parent",
+      "kind": "parent",
+      "correlation_id": "live-pr:mailbox:approval_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:43:57.350204Z"
+    },
+    {
+      "sequence": 42,
+      "id": "live-pr:mailbox:approval_required:paused",
+      "kind": "mailbox",
+      "parent_id": "live-pr:mailbox:approval_required:parent",
+      "correlation_id": "live-pr:mailbox:approval_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:43:59.6628397Z",
+      "payload": {
+        "checkpoint_id": "mailbox-e84908713c0565b4402005c607224388",
+        "pause_model_runs": "0",
+        "pause_reason": "approval_required"
+      }
+    },
+    {
+      "sequence": 43,
+      "id": "live-pr:mailbox:approval_required:restored",
+      "kind": "mailbox",
+      "parent_id": "live-pr:mailbox:approval_required:paused",
+      "correlation_id": "live-pr:mailbox:approval_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:44:03.865082Z",
+      "payload": {
+        "duplicate_converged": "true",
+        "duplicate_model_runs": "0",
+        "duplicate_resumer_calls": "0",
+        "duplicate_status": "acked",
+        "restore_model_runs": "1",
+        "restore_resumer_calls": "1",
+        "restore_status": "acked"
+      }
+    },
+    {
+      "sequence": 44,
+      "id": "live-pr:mailbox:approval_required:terminal",
+      "kind": "terminal",
+      "parent_id": "live-pr:mailbox:approval_required:restored",
+      "correlation_id": "live-pr:mailbox:approval_required",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:44:03.865082Z"
+    },
+    {
+      "sequence": 45,
+      "id": "live-pr:mailbox:budget_exhausted:parent",
+      "kind": "parent",
+      "correlation_id": "live-pr:mailbox:budget_exhausted",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:44:18.8655597Z"
+    },
+    {
+      "sequence": 46,
+      "id": "live-pr:mailbox:budget_exhausted:paused",
+      "kind": "mailbox",
+      "parent_id": "live-pr:mailbox:budget_exhausted:parent",
+      "correlation_id": "live-pr:mailbox:budget_exhausted",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:44:21.1824842Z",
+      "payload": {
+        "checkpoint_id": "mailbox-e841060e7d60a88385e77a8227e53ff6",
+        "pause_model_runs": "0",
+        "pause_reason": "budget_exhausted"
+      }
+    },
+    {
+      "sequence": 47,
+      "id": "live-pr:mailbox:budget_exhausted:restored",
+      "kind": "mailbox",
+      "parent_id": "live-pr:mailbox:budget_exhausted:paused",
+      "correlation_id": "live-pr:mailbox:budget_exhausted",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:44:23.8940692Z",
+      "payload": {
+        "duplicate_converged": "true",
+        "duplicate_model_runs": "0",
+        "duplicate_resumer_calls": "0",
+        "duplicate_status": "acked",
+        "restore_model_runs": "1",
+        "restore_resumer_calls": "1",
+        "restore_status": "acked"
+      }
+    },
+    {
+      "sequence": 48,
+      "id": "live-pr:mailbox:budget_exhausted:terminal",
+      "kind": "terminal",
+      "parent_id": "live-pr:mailbox:budget_exhausted:restored",
+      "correlation_id": "live-pr:mailbox:budget_exhausted",
+      "capability": "live-pause-restore",
+      "status": "passed",
+      "at": "2026-11-12T14:44:23.8940692Z"
+    }
+  ],
+  "provider_compat": "stream-field-injected"
+}

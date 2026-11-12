@@ -534,7 +534,6 @@ func (c *Client) RunTeamAuthorized(ctx context.Context, req TeamRequest) (TeamEx
 	if c == nil || req.RunID == "" || req.TeamID == "" || req.CorrelationID == "" || req.PlanVersion == "" || req.PlanDigest == "" || req.CapabilityDigest == "" || req.ProjectionDigest == "" || req.WriteScopeDigest == "" || req.EffectNamespace == "" || len(req.Members) == 0 || len(req.Members) > 8 {
 		return TeamExecutionResult{}, ErrAuthorizedRequest
 	}
-	source := bmtypes.SourceRef{Kind: bmtypes.HistorySourceTeam, Namespace: "danny.baymax.team.history.v1", ID: req.TeamID}
 	strategy := req.Strategy
 	if strategy == "" {
 		strategy = teams.StrategyParallel
@@ -542,38 +541,11 @@ func (c *Client) RunTeamAuthorized(ctx context.Context, req TeamRequest) (TeamEx
 	if strategy != teams.StrategyParallel && strategy != teams.StrategyVote {
 		return TeamExecutionResult{}, fmt.Errorf("unsupported authorized team strategy %q", strategy)
 	}
-	tasks := make([]teams.Task, 0, len(req.Members))
-	seen := make(map[string]struct{}, len(req.Members))
-	for _, member := range req.Members {
-		memberID := strings.TrimSpace(member.ID)
-		if memberID == "" || member.Role == "" {
-			return TeamExecutionResult{}, ErrAuthorizedRequest
-		}
-		if _, ok := seen[memberID]; ok {
-			return TeamExecutionResult{}, fmt.Errorf("duplicate team member %q", memberID)
-		}
-		seen[memberID] = struct{}{}
-		member := member
-		tasks = append(tasks, teams.Task{TaskID: req.TeamID + ":" + memberID, AgentID: memberID, Role: teams.Role(member.Role), Target: teams.TaskTargetLocal, Runner: teams.TaskRunnerFunc(func(memberCtx context.Context, task teams.Task) (teams.TaskResult, error) {
-			memberRunID := req.TeamID + ":" + member.ID
-			out, runErr := c.RunAuthorized(memberCtx, AuthorizedRequest{RunID: memberRunID, ParentRunID: req.RunID, CorrelationID: req.CorrelationID + ":" + member.ID, PlanVersion: req.PlanVersion, PlanDigest: req.PlanDigest, CapabilityDigest: req.CapabilityDigest, ProjectionDigest: req.ProjectionDigest, WriteScopeDigest: req.WriteScopeDigest, EffectNamespace: req.EffectNamespace + ":" + member.ID, Role: member.Role, Input: member.Input, ToolPolicy: req.ToolPolicy})
-			if runErr != nil {
-				return teams.TaskResult{Output: TeamMemberResult{MemberID: member.ID, RunID: memberRunID, ParentRunID: req.RunID, Status: "failed", FailureClass: runErr.Error(), NativeCursor: out.NativeCursor, NativeHistoryDurable: out.NativeHistoryDurable, Events: out.Events}}, runErr
-			}
-			if out.Terminal.Status != "succeeded" {
-				return teams.TaskResult{Output: TeamMemberResult{MemberID: member.ID, RunID: memberRunID, ParentRunID: req.RunID, Status: out.Terminal.Status, Result: out.Terminal.Result, FailureClass: out.Terminal.FailureClass, NativeCursor: out.NativeCursor, NativeHistoryDurable: out.NativeHistoryDurable, Events: out.Events}}, fmt.Errorf("team member %s terminal status %s", member.ID, out.Terminal.Status)
-			}
-			memberResult := TeamMemberResult{MemberID: member.ID, RunID: memberRunID, ParentRunID: req.RunID, Status: out.Terminal.Status, Result: out.Terminal.Result, FailureClass: out.Terminal.FailureClass, NativeCursor: out.NativeCursor, NativeHistoryDurable: out.NativeHistoryDurable, Events: out.Events}
-			if strategy == teams.StrategyVote {
-				vote, ok := normalizeMemberVote(out.Terminal.Result)
-				if !ok {
-					return teams.TaskResult{Output: memberResult}, fmt.Errorf("team member %s did not provide approve/reject decision evidence", member.ID)
-				}
-				return teams.TaskResult{Vote: vote, Output: memberResult}, nil
-			}
-			return teams.TaskResult{Output: memberResult}, nil
-		})})
+	tasks, err := authorizedTeamTasks(c, req, strategy, nil)
+	if err != nil {
+		return TeamExecutionResult{}, err
 	}
+	source := bmtypes.SourceRef{Kind: bmtypes.HistorySourceTeam, Namespace: "danny.baymax.team.history.v1", ID: req.TeamID}
 	engine, history, err := c.teamEngine(req.TeamID, source)
 	if err != nil {
 		return TeamExecutionResult{}, err

@@ -54,9 +54,7 @@
   `docs/baymax-contract-evidence.md`、
   `openspec/changes/archive/196-deployable-source-history-store-contract/design.md`。
 
-## 未解决
-
-### continuation 支持仍缺 live gate（Danny 已接入，未通过真实集成）
+### continuation 逐 pause reason 的 live gate（已通过真实端点验证）
 
 - **Pin / public contract**：`core/types.ContinuationCapabilities`、
   `ContinuationCapabilitySource`、
@@ -75,24 +73,42 @@
   `Engine.ResumeContinuation`，mailbox 走
   `Worker.ResumeHandlerContinuation`；三者都验证重复恢复收敛、
   已完成效果不重跑。
-- **仍然缺的部分**：这些是确定性 fixture，不是任务 7.3 的 live gate。没有
-  `OPENAI_BASE_URL` / `OPENAI_MODEL` / `OPENAI_API_KEY`，真实
-  OpenAI 兼容端点从未被调用。按 roadmap「Upstream blocking policy」第 9 步，
-  真实集成路径通过前不能把本条改成 `fixed-upstream`，也不能把
-  capability manifest 的 child/team 从 `unsupported` 提升为 `verified`。
-  当前 manifest 的 reason 已改为“已接线、复现通过、仅差 live gate”，
-  而不是原来的“未接线”。
-- **解阻条件（唯一剩余）**：在具备真实凭据的环境中跑通 Milestone 8 的
-  live smoke（任务 7.3），逐 form 逐 pause reason 记录同一 pin 下的真实
-  端点证据。完成后才更新 manifest 状态与本文定级。
+- **live gate 已通过（2026-11-12）**：
+  `cmd/runtime-probe live-pause-restore` 在真实 OpenAI 兼容端点
+  （`agnes-3.0-flash`，`POST /v1/responses`）上对 child、team_parallel、
+  team_vote、mailbox 四个 form × `input_required`/`approval_required`/
+  `budget_exhausted` 三个 pause reason 共 12 条链逐条执行：暂停在本进程
+  通过生产 owner 落盘 source-owned checkpoint，恢复与重复恢复分别在两个
+  全新 OS 子进程中重建 client 后走授权入口完成（真实 provider 调用），
+  重复恢复均收敛且不重跑已完成效果
+  （`testdata/runtimeprobe/baymax-live-pause-restore.evidence.json`，
+  12/12 passed）。过程中确认并记录了两个上游契约事实：
+  1. parallel/vote team 的暂停边界是整批级的（上游注释明确：在批次中途
+     暂停会把未执行的成员持久化为 in-flight，伪造恢复材料），因此 live
+     暂停点在全部成员派发之前，恢复阶段执行剩余成员；
+  2. `Engine.ResumeContinuation` 校验 `teamPlanDigest(plan)` 与 checkpoint
+     的 `GraphDigest` 一致，pause 与 resume 必须使用完全相同的 plan 参数
+     （含 `ParallelMaxWorkers`），否则返回 `ErrTeamContinuationForeign`。
+- **capability manifest 定级**：child（subagent_fanout）、team_parallel、
+  team_vote 已提升为 `verified`，mailbox 的 handler pause restore 也已由
+  live 证据覆盖（`internal/runtimeboundary/contracts.go`）。
 - **证据**：上游归档 194/198、`orchestration/composer/capability.go`、
   `orchestration/teams/continuation.go`、
   `orchestration/mailbox/continuation.go`、
   `internal/agent/baymax/continuation_owners.go`、
+  `internal/agent/baymax/continuation_live.go`、
   `internal/agent/baymax/continuation_restore_test.go`、
+  `cmd/runtime-probe/pause_restore.go`、
+  `testdata/runtimeprobe/baymax-live-pause-restore.evidence.json`、
   `internal/runtimeboundary/contracts.go`、
   `docs/baymax-contract-evidence.md`。
-- **受影响任务**：1.3、3.4、4.3-4.7、5.2-5.5、7.2-7.3。
+- **受影响任务**：1.3、3.4、4.3-4.7、5.2-5.5、7.2-7.3（均已闭合）。
+
+
+## 未解决
+
+（当前无未解决 finding。2026-11-12 的 live pause/restore 证据通过后，
+continuation live gate 一条转入已解决。）
 
 ## 复核记录
 
@@ -104,3 +120,8 @@
   `go test ./internal/agent/baymax ./internal/tasks ./internal/runtimeboundary
   -count=1` 通过。source history 显式绑定一条转入“已解决”；
   continuation 一条只剩 live gate，不再归因于 Danny 未接线。
+- 2026-11-12（晚）：`cmd/runtime-probe live-pause-restore` 在真实端点通过
+  12/12 链（4 form × 3 pause reason），恢复与重复恢复在全新 OS 子进程中
+  完成。capability manifest 的 child/team 提升为 `verified`，
+  mailbox handler pause restore 由 live 证据覆盖，continuation live gate
+  一条转入“已解决”，本文不再有未解决 finding。

@@ -64,33 +64,30 @@ func startProviderShim(upstream string) (*providerShim, error) {
 	}
 	basePath := strings.TrimSuffix(target.Path, "/")
 	shim := &providerShim{}
-	proxy := httputil.NewSingleHostReverseProxy(&url.URL{Scheme: target.Scheme, Host: target.Host})
-	forward := proxy.Director
-	proxy.Director = func(req *http.Request) {
-		forward(req)
-		// The default director rewrites URL.Host but leaves req.Host pointing at
-		// the shim, which becomes the outbound Host header. Gateways behind a CDN
-		// route on Host and answer 403 when it does not match the tenant.
-		req.Host = target.Host
-		if req.Body == nil || req.Body == http.NoBody {
+	// Rewrite (not the deprecated Director) also rewrites the outbound Host
+	// to the target, which is what gateways behind a CDN require; a mismatched
+	// Host is answered with 403 before the body is ever inspected.
+	proxy := &httputil.ReverseProxy{Rewrite: func(pr *httputil.ProxyRequest) {
+		pr.SetURL(&url.URL{Scheme: target.Scheme, Host: target.Host})
+		if pr.Out.Body == nil || pr.Out.Body == http.NoBody {
 			return
 		}
-		raw, readErr := io.ReadAll(req.Body)
-		_ = req.Body.Close()
+		raw, readErr := io.ReadAll(pr.Out.Body)
+		_ = pr.Out.Body.Close()
 		if readErr != nil {
-			req.Body = http.NoBody
-			req.ContentLength = 0
-			req.Header.Del("Content-Length")
+			pr.Out.Body = http.NoBody
+			pr.Out.ContentLength = 0
+			pr.Out.Header.Del("Content-Length")
 			return
 		}
 		body, patched := injectExplicitStream(raw)
 		if patched {
 			shim.patched.Add(1)
 		}
-		req.Body = io.NopCloser(bytes.NewReader(body))
-		req.ContentLength = int64(len(body))
-		req.Header.Set("Content-Length", strconv.Itoa(len(body)))
-	}
+		pr.Out.Body = io.NopCloser(bytes.NewReader(body))
+		pr.Out.ContentLength = int64(len(body))
+		pr.Out.Header.Set("Content-Length", strconv.Itoa(len(body)))
+	}}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, fmt.Errorf("provider shim: listen: %w", err)

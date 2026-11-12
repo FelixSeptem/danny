@@ -21,6 +21,25 @@ func main() {
 	if len(os.Args) > 1 {
 		mode = os.Args[1]
 	}
+	if mode == prResumeMode {
+		ticketPath := ""
+		for index, arg := range os.Args {
+			if arg == "--ticket" && index+1 < len(os.Args) {
+				ticketPath = os.Args[index+1]
+			}
+		}
+		if ticketPath == "" {
+			fmt.Fprintln(os.Stderr, "live-resume requires --ticket <path>")
+			os.Exit(2)
+		}
+		if err := runLiveResume(ticketPath); err != nil {
+			// The result file carries the structured outcome; the exit status
+			// must stay non-zero so a failed restore cannot read as a pass.
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	var bundle runtimeprobe.Bundle
 	var err error
 	switch mode {
@@ -34,10 +53,12 @@ func main() {
 		bundle, err = (runtimeprobe.OfflineRunner{Baymax: adapter}).Run(context.Background(), "runtime probe")
 	case "live-smoke":
 		bundle, err = liveSmoke(context.Background())
+	case "live-pause-restore":
+		bundle, err = livePauseRestore(context.Background())
 	case "stele-smoke":
 		bundle, err = steleSmoke(context.Background())
 	default:
-		fmt.Fprintln(os.Stderr, "usage: runtime-probe [offline|live-smoke|stele-smoke]")
+		fmt.Fprintln(os.Stderr, "usage: runtime-probe [offline|live-smoke|live-pause-restore|stele-smoke]")
 		os.Exit(2)
 	}
 	if len(bundle.Events) == 0 {

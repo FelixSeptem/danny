@@ -167,7 +167,7 @@ func TestOwnerStoreRetentionBoundsReplayAndRejectsExpiredCursor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	page, err := store.ReadAfter(context.Background(), nil, bmtypes.MaxHistoryPageSize)
 	if err != nil {
 		t.Fatal(err)

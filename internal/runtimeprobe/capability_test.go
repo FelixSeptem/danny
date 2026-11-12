@@ -20,7 +20,7 @@ func TestSteleCapabilityManifestIsVersionedAndExplicit(t *testing.T) {
 	for id, want := range map[string]string{
 		"stele.context.schema":          "verified",
 		"stele.context.continuity":      "verified",
-		"stele.context.live-service":    "incomplete",
+		"stele.context.live-service":    "verified",
 		"stele.context.snapshot-replay": "unsupported",
 	} {
 		if statuses[id] != want {

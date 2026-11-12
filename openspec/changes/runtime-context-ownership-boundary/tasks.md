@@ -71,24 +71,38 @@ per-pause-reason matrix. `owner_store_test.go` and `continuation_restore_test.go
 reproduce each condition on the production adapter, including
 `input_required`/`approval_required`/`budget_exhausted` restore in a fresh
 process for all three forms. The first Baymax finding is therefore resolved;
-the second is narrowed to the missing live gate, not to missing Danny wiring.
-The capability manifest still marks child/team pause restore `unsupported`
-because promoting it would need the real integration path.
+the second was closed on 2026-11-12 when the live pause/restore half of task
+7.3 passed (see below). The capability manifest now promotes child/team pause
+restore to `verified` on
+`testdata/runtimeprobe/baymax-live-pause-restore.evidence.json`.
 
-Task 7.3 is complete as of 2026-11-12, in two halves. The Baymax half ran for
-real against an OpenAI-compatible gateway (`agnes-3.0-flash`,
-`POST /v1/responses`) with all six forms passing through the authorized adapter
-(`testdata/runtimeprobe/baymax-live-smoke.evidence.json`); it is not a clean
-pass — the gateway needs an explicit `stream` field, so the bundle records
-`"provider_compat": "stream-field-injected"`. The Stele half ran against a real
-pinned service: a fresh PostgreSQL 18 + pgvector 0.8.6 compose stack served the
-`19fc901` pin from image `danny-stele-verify:local`, and all six capabilities
-(context continuity, memory retrieve, references, compilation replay, restart,
-idempotent replay) passed
-(`testdata/runtimeprobe/stele-19fc901-danny-smoke.evidence.json`). Live *pause
-restore* was not exercised in either half, so the capability manifest keeps
-child/team pause restore `unsupported`; tasks 8.2 and 8.3 stay open because the
-Milestone 9 handoff still needs the complete exit gate.
+Task 7.3 is complete as of 2026-11-12, now in three live halves. The Baymax
+smoke half ran for real against an OpenAI-compatible gateway
+(`agnes-3.0-flash`, `POST /v1/responses`) with all six forms passing through
+the authorized adapter (`testdata/runtimeprobe/baymax-live-smoke.evidence.json`);
+it is not a clean pass — the gateway needs an explicit `stream` field, so the
+bundle records `"provider_compat": "stream-field-injected"`. The Stele half ran
+against a real pinned service: a fresh PostgreSQL 18 + pgvector 0.8.6 compose
+stack served the `19fc901` pin from image `danny-stele-verify:local`, and all
+six capabilities (context continuity, memory retrieve, references, compilation
+replay, restart, idempotent replay) passed
+(`testdata/runtimeprobe/stele-19fc901-danny-smoke.evidence.json`). The live
+pause-restore half closed the remaining exit-gate gap the same day:
+`cmd/runtime-probe live-pause-restore` ran child, team_parallel, team_vote and
+mailbox × `input_required`/`approval_required`/`budget_exhausted` (12 chains,
+all passed,
+`testdata/runtimeprobe/baymax-live-pause-restore.evidence.json`). Each pause
+persists a source-owned checkpoint through the production owners in the
+pausing process; the restore and the duplicate resume each run in a fresh OS
+process that rebuilds the client from the persisted ticket and completes the
+remaining work through the real provider. Every duplicate converged without
+re-running completed effects. Two upstream contract facts were confirmed live
+and recorded in `docs/upstream/baymax-findings.md`: the parallel/vote team
+pause boundary is batch-level (upstream refuses to persist an unexecuted
+member as in-flight), and `Engine.ResumeContinuation` rejects any plan whose
+digest (including `ParallelMaxWorkers`) differs from the checkpoint's
+`GraphDigest`. On that evidence the capability manifest promotes child/team
+pause restore to `verified`, and tasks 8.2/8.3 below are unblocked.
 
 The live harness is no longer direct-only. `cmd/runtime-probe live-smoke` now
 runs `direct`, `child`, `team_parallel`, `team_vote`, `workflow` and `mailbox`
@@ -104,6 +118,16 @@ the spec-default `"stream": false` for gateways that mis-handle an omitted flag;
 the bundle then records `"provider_compat": "stream-field-injected"` so the
 adaptation is visible instead of looking like conformance.
 
+`cmd/runtime-probe live-pause-restore` is the live pause/restore half of the
+gate. The adapter exposes `PauseChildAuthorized`/`ResumeChildAuthorized`,
+`PauseTeamAuthorized`/`ResumeTeamAuthorized` and
+`PauseMailboxAuthorized`/`ResumeMailboxAuthorized` over the same production
+owners the running paths use; the harness writes a persistence ticket in the
+pausing process and re-invokes the probe binary as a fresh OS process for the
+restore and the duplicate resume, so no in-memory state crosses the boundary.
+`DANNY_LIVE_PR_FORMS` re-runs a subset and `DANNY_LIVE_PR_GAP_MS` spaces the
+chains for rate-limited providers.
+
 - [x] 7.1 Extend deterministic contracts for all six execution forms, native tools/events, planning, context trust/budgets, product revision conflicts, and Run/Stream aggregation/terminal parity; verify each new or modified spec scenario is covered by an assertion or explicit pinned contract evidence.
 - [x] 7.2 Run restart/crash/concurrency acceptance on SQLite and PostgreSQL for event/cursor transactions, native recovery bindings, context snapshots, scheduled effects, generation commits, and pending outboxes; verify shared observable results and no duplicate logical mutations or fabricated replay history.
 - [x] 7.3 Capture real OpenAI-compatible smoke evidence for applicable direct/child/team/workflow/mailbox paths and a real pinned Stele service for scoped context, provenance, session/turn continuity, and restart-idempotent memory; verify every availability claim has real correlation/pin/evidence and unavailable credentials or services are recorded as incomplete acceptance.
@@ -112,5 +136,5 @@ adaptation is visible instead of looking like conformance.
 ## 8. Documentation and Milestone Handoff
 
 - [x] 8.1 Update harness, runtime probe, context, recovery, and configuration documentation with the ownership matrix, source/product state distinction, cursor/retention semantics, legacy handling, dependency pins, and evidence references; verify examples describe implemented public contracts and findings remain Chinese with resolved/unresolved sections.
-- [ ] 8.2 Update the roadmap Milestone 8 status and provide the protocol-neutral handoff for Milestone 9 only after the complete exit gate passes; verify all required mode/context/recovery evidence exists, no required upstream task remains blocked, and no AG-UI/A2UI/frontend dependency was introduced by this change.
-- [ ] 8.3 Run `openspec validate runtime-context-ownership-boundary --strict` and `git diff --check`, review the complete task/evidence matrix, and confirm proposal/spec/design/task consistency; verify all implementation checkboxes are backed by acceptance evidence before requesting archive or integration.
+- [x] 8.2 Update the roadmap Milestone 8 status and provide the protocol-neutral handoff for Milestone 9 only after the complete exit gate passes; verify all required mode/context/recovery evidence exists, no required upstream task remains blocked, and no AG-UI/A2UI/frontend dependency was introduced by this change.
+- [x] 8.3 Run `openspec validate runtime-context-ownership-boundary --strict` and `git diff --check`, review the complete task/evidence matrix, and confirm proposal/spec/design/task consistency; verify all implementation checkboxes are backed by acceptance evidence before requesting archive or integration.

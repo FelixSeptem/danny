@@ -87,7 +87,7 @@ func (c *Client) OwnerDeploymentScope(runID string) (bmtypes.DeploymentScope, er
 	if err != nil {
 		return bmtypes.DeploymentScope{}, err
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	return store.DeploymentScope(), nil
 }
 
@@ -160,7 +160,7 @@ func (c *Client) reconcileOwnerStore(ctx context.Context, req runtimeboundary.Re
 		}
 		return runtimeboundary.RecoveryOutcome{Status: runtimeboundary.RecoveryGap}, err
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	caps, err := store.Capabilities(ctx)
 	if err != nil || !caps.Supported || !caps.Durable || !caps.SequenceDefined || caps.CursorVersion == "" || caps.TerminalRecovery == "" || caps.TerminalRecovery == "none" {

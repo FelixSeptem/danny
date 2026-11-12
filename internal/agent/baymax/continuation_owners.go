@@ -87,7 +87,9 @@ func (o *continuationOwners) historyOptions() []history.Option {
 
 // childComposer builds the production child composer with an explicitly
 // configured file owner, durable child source history and restore executor.
-func (c *Client) childComposer(runID string) (*composer.Composer, error) {
+// Extra options are applied last so a caller can override the default
+// commit-only continuation executor for one resume call.
+func (c *Client) childComposer(runID string, extra ...composer.Option) (*composer.Composer, error) {
 	if c.continuationOwners == nil {
 		return composer.NewBuilder(c.model).WithLocalRegistry(c.registry).Build()
 	}
@@ -105,7 +107,7 @@ func (c *Client) childComposer(runID string) (*composer.Composer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return composer.New(c.model,
+	options := []composer.Option{
 		composer.WithLocalRegistry(c.registry),
 		composer.WithSchedulerStore(queue),
 		composer.WithNativeEventHistory(journal),
@@ -117,7 +119,8 @@ func (c *Client) childComposer(runID string) (*composer.Composer, error) {
 				Status:    scheduler.TaskStateSucceeded,
 			}, nil
 		})),
-	)
+	}
+	return composer.New(c.model, append(options, extra...)...)
 }
 
 // teamContinuationStore opens the source-owned team continuation store for a
@@ -133,13 +136,15 @@ func (c *Client) teamContinuationStore(runID string) (*teams.FileTeamContinuatio
 // teamEngine builds the production team engine with the configured file
 // continuation owner and a durable team source journal. It returns the journal
 // so the caller can replay retained native events through the same source.
-func (c *Client) teamEngine(runID string, source bmtypes.SourceRef) (*teams.Engine, *history.Journal, error) {
+// Extra options are applied last so a caller can install a per-call pause
+// controller without mutating the shared owner configuration.
+func (c *Client) teamEngine(runID string, source bmtypes.SourceRef, extra ...teams.Option) (*teams.Engine, *history.Journal, error) {
 	if c.continuationOwners == nil {
 		journal, err := teams.NewNativeEventHistory(source)
 		if err != nil {
 			return nil, nil, err
 		}
-		return teams.New(teams.WithNativeEventHistory(journal)), journal, nil
+		return teams.New(append([]teams.Option{teams.WithNativeEventHistory(journal)}, extra...)...), journal, nil
 	}
 	owner := c.continuationOwners
 	journal, err := teams.OpenNativeEventHistory(owner.paths("team-history", runID), source, owner.historyOptions()...)
@@ -157,7 +162,7 @@ func (c *Client) teamEngine(runID string, source bmtypes.SourceRef) (*teams.Engi
 	if owner.config.PauseBoundary != nil {
 		options = append(options, teams.WithTeamPauseController(owner.config.PauseBoundary))
 	}
-	return teams.New(options...), journal, nil
+	return teams.New(append(options, extra...)...), journal, nil
 }
 
 // mailboxOwner builds a durable mailbox with a handler-safe-point continuation

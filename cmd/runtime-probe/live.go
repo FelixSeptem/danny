@@ -320,6 +320,24 @@ func liveOwnerRoot() string {
 // OpenAI-compatible endpoint. A form that fails marks its own events
 // failed-contract and is returned as an incomplete run; the evidence bundle is
 // still valid so a partial gate can be diagnosed instead of discarded.
+// liveOpenAIModel builds the authorized OpenAI-compatible client shared by
+// the live smoke and the pause/restore processes.
+func liveOpenAIModel(gatewayEndpoint, modelName string) *openaiadapter.Client {
+	profile := &openaiadapter.EndpointProfile{
+		Version:  openaiadapter.EndpointProfileVersion,
+		ID:       "danny-runtime-probe",
+		Endpoint: gatewayEndpoint,
+		Model:    modelName,
+		APIShape: openaiadapter.ResponsesAPIShapeVersion,
+		Capabilities: map[openaiadapter.EndpointCapability]bmtypes.CapabilitySupport{
+			openaiadapter.EndpointCapabilityStructuredInput:  bmtypes.CapabilitySupportSupported,
+			openaiadapter.EndpointCapabilityNativeToolResult: bmtypes.CapabilitySupportSupported,
+			openaiadapter.EndpointCapabilityStreaming:        bmtypes.CapabilitySupportSupported,
+		},
+	}
+	return openaiadapter.NewClient(openaiadapter.Config{APIKey: os.Getenv("OPENAI_API_KEY"), BaseURL: gatewayEndpoint, Model: modelName, Profile: profile})
+}
+
 func liveSmoke(ctx context.Context) (runtimeprobe.Bundle, error) {
 	endpoint, modelName := os.Getenv("OPENAI_BASE_URL"), os.Getenv("OPENAI_MODEL")
 	if endpoint == "" || modelName == "" {
@@ -342,19 +360,7 @@ func liveSmoke(ctx context.Context) (runtimeprobe.Bundle, error) {
 	if shim != nil {
 		defer func() { _ = shim.Close() }()
 	}
-	profile := &openaiadapter.EndpointProfile{
-		Version:  openaiadapter.EndpointProfileVersion,
-		ID:       "danny-runtime-probe",
-		Endpoint: gatewayEndpoint,
-		Model:    modelName,
-		APIShape: openaiadapter.ResponsesAPIShapeVersion,
-		Capabilities: map[openaiadapter.EndpointCapability]bmtypes.CapabilitySupport{
-			openaiadapter.EndpointCapabilityStructuredInput:  bmtypes.CapabilitySupportSupported,
-			openaiadapter.EndpointCapabilityNativeToolResult: bmtypes.CapabilitySupportSupported,
-			openaiadapter.EndpointCapabilityStreaming:        bmtypes.CapabilitySupportSupported,
-		},
-	}
-	model := openaiadapter.NewClient(openaiadapter.Config{APIKey: os.Getenv("OPENAI_API_KEY"), BaseURL: gatewayEndpoint, Model: modelName, Profile: profile})
+	model := liveOpenAIModel(gatewayEndpoint, modelName)
 	client, err := baymax.New(model)
 	if err != nil {
 		return runtimeprobe.Bundle{}, err

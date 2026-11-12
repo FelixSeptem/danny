@@ -328,6 +328,15 @@ func TestHarnessUsesNativeBoundedChildBatchBoundary(t *testing.T) {
 func TestHarnessRejectsUnsupportedModeWithoutDispatch(t *testing.T) {
 	executor := &fakeExecutor{parent: knowledge.ExecutionOutcome{Status: "succeeded"}}
 	harness, _ := newHarness(t, executor)
+	// The default manifest now verifies team_parallel, so the fail-closed
+	// rejection path is exercised against an explicit unsupported manifest.
+	manifest := runtimeboundary.DefaultCapabilityManifest()
+	for i := range manifest.Capabilities {
+		if manifest.Capabilities[i].Form == runtimeboundary.FormParallelTeam {
+			manifest.Capabilities[i].Status = runtimeboundary.CapabilityUnsupported
+		}
+	}
+	harness.Planner = knowledge.NewPlannerWithManifest("planner.v1", runtimeboundary.NewCapabilityManifest(manifest.Capabilities))
 	_, err := harness.Admit(context.Background(), AdmissionRequest{TaskID: "task-3", CorrelationID: "corr-3", Policy: knowledge.DefaultPolicy(knowledge.PolicyRead), Profile: knowledge.TaskProfile{Objective: "team", Complexity: 1, Budget: 1000}, RequestedMode: knowledge.ModeTeamParallel})
 	var unsupported UnsupportedModeError
 	if !errors.As(err, &unsupported) || unsupported.Mode != knowledge.ModeTeamParallel || executor.children != 0 {
