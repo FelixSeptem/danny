@@ -18,7 +18,7 @@ boundary, not a transfer of Danny's authorization or commit authority.
 | Source trust classification and tool authorization | Danny | `knowledge.Policy`, `ToolRegistry` | Product admission and tool callbacks | Danny AppStore | `internal/agent/knowledge/agent.go` |
 | Plan selection, capability manifest and task revision | Danny | `runtimeboundary.ExecutionRequest`, planner | Product harness | Danny AppStore | `internal/runtimeboundary/contracts.go` |
 | Tasks, generations, source bytes and citations | Danny | storage repositories | Knowledge and task services | Danny AppStore/filesystem generation journal | `docs/storage-durability.md` |
-| Product observation log and replay cursor | Danny | runtimeboundary event projection repository | Protocol-neutral observers | Danny AppStore | `openspec/changes/runtime-context-ownership-boundary/specs/storage-durability/spec.md` |
+| Product observation log and replay cursor | Danny | runtimeboundary event projection repository | Protocol-neutral observers | Danny AppStore | `openspec/specs/storage-durability/spec.md` |
 | Effect ledger and application outboxes | Danny | storage effect/outbox repositories | Schedulers, tools and delivery workers | Danny AppStore | `docs/scheduler-reliable-delivery.md` |
 | Memory ingestion, path and provenance | Stele | documented memory/provider API | Stele adapter | Stele store | `docs/upstream/stele-findings.md` |
 | Memory retrieval, ranking and selection | Stele | documented context/retrieve API | Stele adapter | Stele store | `internal/context/stele/adapter.go` |
