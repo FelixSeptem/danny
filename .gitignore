@@ -45,6 +45,9 @@ debug.log
 parser_service/__pycache__/
 parser_service/.test-work/
 
+# Local runtime data (SQLite database, documents, derived artifacts)
+data/
+
 # Workbench front-end toolchain (built assets are produced by npm run build)
 web/node_modules/
 web/dist/
