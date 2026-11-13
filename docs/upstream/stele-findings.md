@@ -43,11 +43,12 @@
 - **预期行为：** provider principal 可以参与治理 candidate/canonical 持久化，不触发 PostgreSQL UUID 类型错误。
 - **实际行为（旧版本）：** 治理路径把 `id_...` principal 标识写入 UUID 字段，导致 raw event 无法完成治理。
 - **证据：** 旧版证据和数据库复现见本 finding 的历史记录；修复版运行证据见 `testdata/runtimeprobe/stele-compose.evidence.json`，memory、context、restart、idempotency 均通过，worker 日志未出现 UUID 类型错误。
+- **受影响任务：** OpenSpec 任务 `3.2`、`7.1` 和 `7.3` 曾因治理阶段的 PostgreSQL UUID 类型错误阻塞，与 STELE-001 同批解除。
 - **上游引用：** Stele commit `9ffe5e9`（`fix: generate postgres-compatible application IDs`）。
 - **修复验证：** 使用 `9ffe5e9` 构建的全新 PostgreSQL Compose 环境完成 bootstrap，并运行 `go run ./cmd/runtime-probe stele-smoke`；事件已进入 candidate/canonical 治理，未再观察到 UUID/type 错误。
 - **解除条件：** 已满足。该问题不再阻塞 Danny；references 的路径问题已由下方 `STELE-003` 修复版本解决。
 
-### 维护者交接
+## 维护者交接
 
 以下 Danny 工作曾因 `STELE-001` 阻塞，在修复验证完成后可以继续：
 
@@ -100,6 +101,8 @@ Danny 没有增加本地 reference store、路径重写或替代写入路径。�
 - **修复版本：** `github.com/FelixSeptem/stele v0.0.0-20261007022008-54372e2fe4f3`（commit `54372e2fe4f3`）
 - **复现环境：** 使用全新的 PostgreSQL Compose 数据卷和 provider-v1 runtime credential，通过 `go run ./cmd/runtime-probe stele-smoke` 追加 `knowledge/generations/987654321` 编译投影并等待治理。
 - **实际行为（旧版本）：** API 写入、幂等 replay 和 exact-path lookup 可以成功，但治理 worker 最终报 `insert summary canonical memory: ERROR: INSERT has more target columns than expressions (SQLSTATE 42601)`，raw event 未完成处理。
+- **证据：** `testdata/runtimeprobe/stele-compose.evidence.json` 中 compilation 事件为 `status=passed` 的记录，以及修复版重新执行原始复现后的脱敏 smoke 输出；仓库未保存 credential、Authorization header 或原始 provider payload。
+- **受影响任务：** OpenSpec `knowledge-compilation-workflow` 的编译投影治理任务曾阻塞，与 STELE-005 同批（任务 `5.4`、`5.5`）解除。
 - **上游引用：** Stele commit `54372e2fe4f3`（`fix: repair summary canonical persistence`）。
 - **修复验证：** 使用 `54372e2fe4f3` 的全新 PostgreSQL Compose 环境重新执行原始复现后，summary canonical INSERT 错误消失；compilation API 写入、相同 event ID replay 和 exact-path lookup 均通过。后续发现的 provenance UUID 错误属于独立的 STELE-005，已由 `a556ac0ddacc` 修复。
 - **解除条件：** 已满足。Danny 没有加入 event type 替换、重复写入、路径重写或本地 reference store workaround。

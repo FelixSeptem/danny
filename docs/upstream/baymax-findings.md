@@ -53,6 +53,14 @@
   `internal/agent/baymax/owner_store_test.go`、
   `docs/baymax-contract-evidence.md`、
   `openspec/changes/archive/196-deployable-source-history-store-contract/design.md`。
+- **状态：** `fixed-upstream`
+- **受影响任务：** 3.2、7.1 与 7.3（owner store 绑定与恢复读取）已闭合；
+  跨机协调与多写者 CAS 仍按上游 non-goals 保持不提供。
+- **解除条件：** 已满足。`v0.0.0-20261110150429-cca95f31f71b` 已提供
+  `core/history.OpenOwnerStore`，Danny 侧通过 `Client.BindOwnerStore` 显式绑定，
+  重建后 `Reconcile` 可从 owner 重放；`TestOwnerStoreReplaysTerminalAcrossFreshProcess`
+  与 `TestOwnerStoreReconcilesProjectionIdempotentlyAfterCrashBeforeProjection`
+  在新进程中验证通过。
 
 ### continuation 逐 pause reason 的 live gate（已通过真实端点验证）
 
@@ -73,6 +81,11 @@
   `Engine.ResumeContinuation`，mailbox 走
   `Worker.ResumeHandlerContinuation`；三者都验证重复恢复收敛、
   已完成效果不重跑。
+- **复现步骤：** 在配置了真实 OpenAI 兼容端点（`DANNY_MODEL_ENDPOINT`、
+  `DANNY_MODEL_API_KEY`）与 pinned Baymax 版本的环境执行
+  `go run ./cmd/runtime-probe live-pause-restore`，对 child、team_parallel、
+  team_vote、mailbox 四个 form × 三个 pause reason 逐条执行暂停与恢复；
+  恢复必须在全新 OS 子进程中重建 client 后走授权入口完成。
 - **live gate 已通过（2026-11-12）**：
   `cmd/runtime-probe live-pause-restore` 在真实 OpenAI 兼容端点
   （`agnes-3.0-flash`，`POST /v1/responses`）上对 child、team_parallel、
@@ -103,6 +116,11 @@
   `internal/runtimeboundary/contracts.go`、
   `docs/baymax-contract-evidence.md`。
 - **受影响任务**：1.3、3.4、4.3-4.7、5.2-5.5、7.2-7.3（均已闭合）。
+- **状态：** `fixed-upstream`
+- **解除条件：** 已满足。child、team_parallel、team_vote 的 capability 已在
+  `internal/runtimeboundary/contracts.go` 提升为 `verified`，mailbox 的 handler
+  pause restore 由 `cmd/runtime-probe live-pause-restore` 的 12/12 live 证据覆盖；
+  重复恢复收敛且不重跑已完成效果。
 
 
 ## 未解决
