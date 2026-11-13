@@ -30,18 +30,18 @@ The system SHALL provide a root `compose.yaml` whose default profile starts the 
 - **WHEN** the default profile container is stopped and restarted with its named volumes intact
 - **THEN** the database, documents, and derived artifacts SHALL remain available and the service SHALL return to ready
 
-### Requirement: A PostgreSQL profile gates startup on database health
+### Requirement: A PostgreSQL override gates startup on database health
 
-The system SHALL provide a `postgres` Compose profile with a pinned database image, a named data volume, and a `pg_isready` health check. The application service in that profile SHALL declare `depends_on` with `condition: service_healthy` and SHALL receive `DANNY_STORAGE_DRIVER=postgres` and a `postgres`-scheme `DANNY_DATABASE_URL`. No database port SHALL be published to the host. Migrations SHALL run through the existing startup sequence only after the database is healthy.
+The system SHALL provide a `compose.postgres.yaml` override with a pinned database image, a named data volume, and a `pg_isready` health check. Loading it together with the base `compose.yaml` SHALL give the application service `depends_on` with `condition: service_healthy` and SHALL set `DANNY_STORAGE_DRIVER=postgres` and a `postgres`-scheme `DANNY_DATABASE_URL`. No database port SHALL be published to the host. Migrations SHALL run through the existing startup sequence only after the database is healthy.
 
 #### Scenario: Migrations never race an unready database
 
-- **WHEN** the `postgres` profile starts while the database is still initializing
+- **WHEN** the PostgreSQL override starts while the database is still initializing
 - **THEN** the application container SHALL wait for the healthy condition, run migrations, and only then become ready
 
 #### Scenario: Database is not host-reachable
 
-- **WHEN** the normalized Compose configuration for the `postgres` profile is inspected
+- **WHEN** the normalized Compose configuration for the PostgreSQL override is inspected
 - **THEN** no service SHALL publish a database port to the host
 
 ### Requirement: Host publication stays loopback-only and the container listener is an explicit opt-in

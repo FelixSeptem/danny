@@ -1,0 +1,59 @@
+name: danny
+
+# The Milestone 7 parser project stays the single source of truth for the
+# parser service and its volumes. It is included here so --profile parser can
+# add it to this project without duplicating its definition.
+include:
+  - compose.parser.yaml
+
+services:
+  # Default topology: one app container with SQLite. No database or parser
+  # service is required by this command.
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NODE_BASE_IMAGE: ${DANNY_NODE_BASE_IMAGE:-docker.1ms.run/library/node:22-alpine}
+        GO_BASE_IMAGE: ${DANNY_GO_BASE_IMAGE:-docker.1ms.run/library/golang:1.26-alpine}
+        RUNTIME_BASE_IMAGE: ${DANNY_RUNTIME_BASE_IMAGE:-docker.1ms.run/library/alpine:3.20}
+    image: danny/personal-agent:local
+    environment:
+      DANNY_MODEL_ENDPOINT: ${DANNY_MODEL_ENDPOINT:-}
+      DANNY_MODEL_NAME: ${DANNY_MODEL_NAME:-}
+      DANNY_MODEL_API_KEY: ${DANNY_MODEL_API_KEY:-}
+      DANNY_STORAGE_DRIVER: sqlite
+      DANNY_DATABASE_URL: /var/lib/danny/data/danny.db
+      DANNY_DATA_DIR: /var/lib/danny/data
+      DANNY_DOCUMENTS_DIR: /var/lib/danny/documents
+      DANNY_ARTIFACTS_DIR: /var/lib/danny/artifacts
+      DANNY_WORKBENCH_DIR: /opt/danny/web/dist
+      DANNY_LISTEN_ADDRESS: 0.0.0.0:8080
+      DANNY_CONTAINER_LISTEN: "true"
+      DANNY_PARSER_URL: http://parser:8090
+      DANNY_SCHEDULER_TIMEZONE: ${DANNY_SCHEDULER_TIMEZONE:-UTC}
+    ports:
+      - "127.0.0.1:${DANNY_HOST_PORT:-8080}:8080"
+    volumes:
+      - danny_data:/var/lib/danny/data
+      - danny_documents:/var/lib/danny/documents
+      - danny_artifacts:/var/lib/danny/artifacts
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/api/health/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+    tmpfs:
+      - /tmp:size=256m,noexec,nosuid
+
+volumes:
+  danny_data:
+  danny_documents:
+  danny_artifacts:

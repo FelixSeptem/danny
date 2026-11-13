@@ -1,0 +1,46 @@
+# VCS, session data, and local worktrees
+.git
+.gitignore
+.github
+.workbuddy
+.worktrees
+
+# Local build/analysis caches (never enter an image layer)
+.go-cache/
+.gocache/
+.gocache-*/
+.gomodcache/
+.gomodcache-*/
+.golangci-cache/
+.golangci-cache-*/
+.tmp/
+.tmp-go-cache*/
+debug.log
+*.log
+coverage.*
+*.out
+*.test
+
+# Front-end dependencies and host-built assets (built inside the image)
+web/node_modules/
+web/dist/
+
+# Python parser leftovers (the parser has its own image)
+parser_service/__pycache__/
+parser_service/.test-work/
+
+# Runtime data and credentials
+data/
+.env
+.env.*
+
+# Documentation and non-build inputs are not needed by either build stage
+docs/
+openspec/
+scripts/
+testdata/
+compose*.yaml
+Dockerfile
+.dockerignore
+README.md
+LICENSE

@@ -17,8 +17,9 @@ storage modes, with host ports unreachable beyond the local machine.
   (`modernc.org/sqlite`, `pgx`), so the runtime image needs neither cgo nor
   Node.js.
 - Add a root `compose.yaml` with a default SQLite profile (mounted data,
-  documents, and artifact directories) and a `postgres` profile whose
-  database service gates application startup on a health check.
+  documents, and artifact directories) plus `compose.postgres.yaml`, an
+  explicit override whose database service gates application startup on a
+  health check.
 - Keep the Milestone 7 `compose.parser.yaml` parser-only project intact and
   reuse its parser service on the internal network. No parser host port is
   published.
@@ -28,7 +29,7 @@ storage modes, with host ports unreachable beyond the local machine.
   rejects non-loopback addresses. Host publication is fixed to `127.0.0.1`
   and covered by a test that reads the Compose file.
 - Add `/api/health/live` and `/api/health/ready`. Readiness performs a real
-  storage `Ping` and reports the configured driver, so the PostgreSQL profile
+  storage `Ping` and reports the configured driver, so the PostgreSQL override
   and container health checks gate on actual database reachability instead of
   a static response. The existing `/api/health` stays unchanged.
 - Add `.env.example` documenting the OpenAI-compatible endpoint, model name,

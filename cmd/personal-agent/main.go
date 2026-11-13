@@ -51,11 +51,14 @@ func main() {
 		Surfaces: &server.SurfaceService{Store: store, Catalog: catalog},
 	}
 	service := &server.Server{
-		AgentUI:     agentUI,
-		Projections: store.Projections(),
-		Tasks:       store.Tasks(),
-		Surfaces:    &server.StorageSurfaceSource{Store: store, Catalog: catalog},
-		StaticDir:   cfg.WorkbenchDir,
+		AgentUI:       agentUI,
+		Projections:   store.Projections(),
+		Tasks:         store.Tasks(),
+		Surfaces:      &server.StorageSurfaceSource{Store: store, Catalog: catalog},
+		StaticDir:     cfg.WorkbenchDir,
+		HealthCheck:   store.Ping,
+		StorageDriver: cfg.StorageDriver,
+		ArtifactDir:   cfg.ArtifactsDir,
 	}
 	httpServer := &http.Server{
 		Addr:              cfg.ListenAddress,
@@ -63,9 +66,13 @@ func main() {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
+	listenerNote := "loopback-only, same-origin enforced"
+	if cfg.ContainerListen {
+		listenerNote = "container wildcard listener, host publication bound to 127.0.0.1, same-origin enforced"
+	}
 	serveErr := make(chan error, 1)
 	go func() {
-		fmt.Printf("danny workbench listening on %s (loopback-only, same-origin enforced)\n", cfg.ListenAddress)
+		fmt.Printf("danny workbench listening on %s (%s)\n", cfg.ListenAddress, listenerNote)
 		err := httpServer.ListenAndServe()
 		if errors.Is(err, http.ErrServerClosed) {
 			err = nil

@@ -1,0 +1,35 @@
+# PostgreSQL override. Load it together with the base project:
+#   docker compose -f compose.yaml -f compose.postgres.yaml up -d --build
+#
+# The database service lives only in this override, so the default
+# `docker compose up -d --build` never starts PostgreSQL. The app dependency
+# is health-gated; migrations run in the application startup sequence only
+# after pg_isready succeeds. No database port is published to the host.
+
+services:
+  postgres:
+    image: ${DANNY_POSTGRES_IMAGE:-docker.1ms.run/library/postgres:16-alpine}
+    environment:
+      POSTGRES_DB: danny
+      POSTGRES_USER: danny
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-danny}
+    volumes:
+      - danny_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U danny -d danny"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  app:
+    environment:
+      DANNY_STORAGE_DRIVER: postgres
+      DANNY_DATABASE_URL: postgres://danny:${POSTGRES_PASSWORD:-danny}@postgres:5432/danny?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  danny_pgdata:

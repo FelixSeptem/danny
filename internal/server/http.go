@@ -59,6 +59,13 @@ type Server struct {
 	Tasks       TaskUpdater
 	Surfaces    SurfaceSource
 	StaticDir   string
+
+	// HealthCheck is the storage dependency probe used by /api/health/ready.
+	// A nil probe fails closed. StorageDriver and ArtifactDir are reported as
+	// metadata; they never widen the read-only projection boundary.
+	HealthCheck   func(ctx context.Context) error
+	StorageDriver string
+	ArtifactDir   string
 }
 
 // Handler returns the assembled, same-origin-protected HTTP handler. Routing
@@ -153,8 +160,8 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request, segments []str
 		return
 	}
 	resource := segments[1]
-	if resource == "health" && len(segments) == 2 && r.Method == http.MethodGet {
-		writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "boundary": "http-api-workbench"})
+	if resource == "health" {
+		s.serveHealth(w, r, segments)
 		return
 	}
 	if resource == "surfaces" {
@@ -182,6 +189,76 @@ func (s *Server) serveAPI(w http.ResponseWriter, r *http.Request, segments []str
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+// serveHealth is dispatched before the projection guard: liveness and
+// readiness must not depend on a configured projection repository.
+func (s *Server) serveHealth(w http.ResponseWriter, r *http.Request, segments []string) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "health endpoints are read-only")
+		return
+	}
+	if len(segments) == 2 {
+		writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "boundary": "http-api-workbench"})
+		return
+	}
+	if len(segments) != 3 {
+		http.NotFound(w, r)
+		return
+	}
+	switch segments[2] {
+	case "live":
+		writeJSON(w, http.StatusOK, map[string]any{"status": "live", "boundary": "docker-operations"})
+	case "ready":
+		s.serveReadiness(w, r)
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+// serveReadiness performs a real dependency probe. A missing probe, a failing
+// storage ping, or an unusable artifact directory produces a typed 503 rather
+// than an empty success, so Compose health checks cannot gate on a lie.
+func (s *Server) serveReadiness(w http.ResponseWriter, r *http.Request) {
+	if s.HealthCheck == nil {
+		writeJSONError(w, http.StatusServiceUnavailable, "unavailable", "health source is not configured")
+		return
+	}
+	if err := s.HealthCheck(r.Context()); err != nil {
+		writeJSONError(w, http.StatusServiceUnavailable, "dependency_unavailable", err.Error())
+		return
+	}
+	if err := ensureArtifactDir(s.ArtifactDir); err != nil {
+		writeJSONError(w, http.StatusServiceUnavailable, "dependency_unavailable", "artifact directory is unusable: "+err.Error())
+		return
+	}
+	driver := s.StorageDriver
+	if driver == "" {
+		driver = "unknown"
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":          "ready",
+		"boundary":        "docker-operations",
+		"storage_driver":  driver,
+		"artifacts_ready": true,
+	})
+}
+
+func ensureArtifactDir(dir string) error {
+	if dir == "" {
+		return errors.New("artifact directory is not configured")
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	info, err := os.Stat(dir)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return errors.New("path is not a directory")
+	}
+	return nil
 }
 
 // serveSurface serves the A2UI v0.9.1 wire rendering of a stored,

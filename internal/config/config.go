@@ -13,6 +13,7 @@ import (
 type Config struct {
 	ModelEndpoint     string
 	ModelName         string
+	ModelAPIKey       string
 	BaymaxVersion     string
 	SteleVersion      string
 	StorageDriver     string
@@ -23,6 +24,7 @@ type Config struct {
 	FixtureDir        string
 	ListenAddress     string
 	AuthenticatedMode bool
+	ContainerListen   bool
 	SchedulerEnabled  bool
 	SchedulerTimezone string
 	DockerProfile     string
@@ -60,6 +62,10 @@ func LoadFromEnv(lookup func(string) (string, bool)) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	containerListen, err := parseBool("DANNY_CONTAINER_LISTEN", false)
+	if err != nil {
+		return Config{}, err
+	}
 	schedulerEnabled, err := parseBool("DANNY_SCHEDULER_ENABLED", false)
 	if err != nil {
 		return Config{}, err
@@ -67,6 +73,7 @@ func LoadFromEnv(lookup func(string) (string, bool)) (Config, error) {
 	return Config{
 		ModelEndpoint:     get("DANNY_MODEL_ENDPOINT", ""),
 		ModelName:         get("DANNY_MODEL_NAME", ""),
+		ModelAPIKey:       get("DANNY_MODEL_API_KEY", ""),
 		BaymaxVersion:     get("DANNY_BAYMAX_VERSION", "v0.0.0-20261110150429-cca95f31f71b"),
 		SteleVersion:      get("DANNY_STELE_VERSION", "v0.0.0-20261111135338-19fc90134492"),
 		StorageDriver:     strings.ToLower(get("DANNY_STORAGE_DRIVER", "sqlite")),
@@ -77,6 +84,7 @@ func LoadFromEnv(lookup func(string) (string, bool)) (Config, error) {
 		FixtureDir:        get("DANNY_FIXTURE_DIR", "testdata/fixtures"),
 		ListenAddress:     get("DANNY_LISTEN_ADDRESS", "127.0.0.1:8080"),
 		AuthenticatedMode: authenticated,
+		ContainerListen:   containerListen,
 		SchedulerEnabled:  schedulerEnabled,
 		SchedulerTimezone: get("DANNY_SCHEDULER_TIMEZONE", "UTC"),
 		DockerProfile:     get("DANNY_DOCKER_PROFILE", "local"),
@@ -102,7 +110,11 @@ func (c Config) Validate() error {
 			problems = append(problems, "DANNY_DATABASE_URL must use postgres or postgresql scheme")
 		}
 	}
-	if err := security.ValidateListener(c.ListenAddress, c.AuthenticatedMode); err != nil {
+	if c.ContainerListen {
+		if err := security.ValidateContainerListener(c.ListenAddress); err != nil {
+			problems = append(problems, "DANNY_LISTEN_ADDRESS: "+err.Error())
+		}
+	} else if err := security.ValidateListener(c.ListenAddress, c.AuthenticatedMode); err != nil {
 		problems = append(problems, "DANNY_LISTEN_ADDRESS: "+err.Error())
 	}
 	if c.SchedulerTimezone == "" {

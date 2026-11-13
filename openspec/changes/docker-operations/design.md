@@ -47,21 +47,24 @@ authentication claim.
 
 `compose.yaml` defines:
 
-- `app`: the assembled service, active in the default (SQLite) profile. A
+- `app`: the assembled service, active in the default (SQLite) topology. A
   health check polls `/api/health/ready`. Volumes: `danny_data`,
   `danny_documents`, `danny_artifacts`.
-- `postgres`: `profiles: [postgres]`, pinned image, named data volume, and a
-  `pg_isready` health check. In that profile the app declares
-  `depends_on: {postgres: {condition: service_healthy}}` so migrations never
-  race an unready database. No database port is published.
-- `parser`: the Milestone 7 parser service, reachable only on the internal
-  network at `http://parser:8090` (the existing `DANNY_PARSER_URL` default).
-  No host port is published and its existing health check is preserved.
+- `parser`: brought in by `include: compose.parser.yaml`, reachable only on
+  the internal network at `http://parser:8090` (the existing
+  `DANNY_PARSER_URL` default). No host port is published and its existing
+  health check is preserved.
 
-Profile selection is additive: `--profile postgres` selects the PostgreSQL
-topology, `--profile parser` adds the parser. The default project starts only
-`app` with SQLite. `compose.parser.yaml` remains the standalone parser-only
-project referenced by `docs/parser-service.md`.
+`compose.postgres.yaml` is an explicit override, not a Compose `profiles:`
+entry. Loading it with `-f compose.yaml -f compose.postgres.yaml` adds a
+pinned `postgres` service with a named data volume and a `pg_isready` health
+check, and adds `depends_on: {postgres: {condition: service_healthy}}` to
+`app` so migrations never race an unready database. No database port is
+published. Keeping it in an override means the default `docker compose up`
+can never start PostgreSQL by accident. `--profile parser` adds the parser
+service; the default project starts only `app` with SQLite.
+`compose.parser.yaml` remains the standalone parser-only project referenced
+by `docs/parser-service.md`.
 
 ## Startup, health, and reconciliation
 
@@ -111,13 +114,13 @@ contract tests, not through a fabricated worker process.
 
 ## Verification strategy
 
-- Static: `docker compose config` for the default, `postgres`, and `parser`
-  profiles; inspect normalized output for host publication bindings;
-  `git diff --check`.
+- Static: `docker compose config` for the default and parser topologies and
+  for the PostgreSQL override; inspect normalized output for host publication
+  bindings; `git diff --check`.
 - Build: build the application image when base images are reachable.
-- Runtime: start the default profile, poll readiness, stop and restart the
-  container, and confirm readiness recovers. Repeat with the `postgres`
-  profile when its image is reachable.
+- Runtime: start the default topology, poll readiness, stop and restart the
+  container, and confirm readiness recovers. Repeat with the PostgreSQL
+  override when its image is reachable.
 - Go: `go build ./...`, `go vet ./...`, `go test ./... -count=1`, focused
   `golangci-lint`, and the Compose publication test.
 - Any check that cannot run in this environment is recorded as unverified
