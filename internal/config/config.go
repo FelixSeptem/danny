@@ -30,6 +30,7 @@ type Config struct {
 	ParserCommand     string
 	ParserStagingDir  string
 	ParserJobsDir     string
+	WorkbenchDir      string
 }
 
 // LoadFromEnv parses DANNY_* variables and applies documented local defaults.
@@ -83,6 +84,7 @@ func LoadFromEnv(lookup func(string) (string, bool)) (Config, error) {
 		ParserCommand:     get("DANNY_PARSER_COMMAND", "danny-parser"),
 		ParserStagingDir:  get("DANNY_PARSER_STAGING_DIR", "data/staging"),
 		ParserJobsDir:     get("DANNY_PARSER_JOBS_DIR", "data/parser-jobs"),
+		WorkbenchDir:      get("DANNY_WORKBENCH_DIR", "web/dist"),
 	}, nil
 }
 

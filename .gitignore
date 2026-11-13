@@ -45,6 +45,10 @@ debug.log
 parser_service/__pycache__/
 parser_service/.test-work/
 
+# Workbench front-end toolchain (built assets are produced by npm run build)
+web/node_modules/
+web/dist/
+
 # Per-run cache directories (legacy pattern; use the shared cache dir instead)
 .gocache/
 .gocache-*/

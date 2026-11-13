@@ -19,6 +19,9 @@ func TestLoadFromEnvUsesStableLocalDefaults(t *testing.T) {
 	if cfg.AuthenticatedMode {
 		t.Fatal("AuthenticatedMode defaulted to true")
 	}
+	if cfg.WorkbenchDir != "web/dist" {
+		t.Fatalf("WorkbenchDir = %q, want web/dist", cfg.WorkbenchDir)
+	}
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("default config should validate: %v", err)
 	}
