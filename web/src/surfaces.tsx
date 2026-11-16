@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { A2UI_WIRE_VERSION, submitSurfaceAction } from './api';
+import { EmptyState, Notice } from './ui/primitives';
 
 // Restricted renderer for A2UI v0.9.1 declarative surfaces.
 //
@@ -95,15 +96,17 @@ export function SurfacePanel({ wire, executionId, taskRevision }: SurfacePanelPr
   const [choice, setChoice] = useState('');
 
   if (!wire) {
-    return <p className="empty">No server-approved surface is active for this run.</p>;
+    return (
+      <EmptyState title="NO ACTIVE SURFACE">
+        No server-approved surface is active for this run. Only wire fetched from the read-only
+        endpoint and passing the version/catalog gate renders here; the browser never builds
+        a component tree of its own.
+      </EmptyState>
+    );
   }
   const rejection = validateSurface(wire);
   if (rejection) {
-    return (
-      <div className="typed-rejection" role="alert">
-        <strong>{rejection.code}</strong>: {rejection.message}
-      </div>
-    );
+    return <Notice tone="error" code={rejection.code} text={rejection.message} role="alert" />;
   }
 
   const submit = async (actionId: string) => {
@@ -124,24 +127,22 @@ export function SurfacePanel({ wire, executionId, taskRevision }: SurfacePanelPr
   return (
     <div className="surface-panel">
       <p className="surface-meta">
-        A2UI {wire.a2ui_version} · surface {wire.surface_id} · revision {wire.revision}
+        A2UI {wire.a2ui_version} · surface {wire.surface_id} · revision {wire.revision} · catalog {wire.catalog_version}
       </p>
       {(wire.components ?? []).map((node, index) => <RenderNode key={index} node={node} />)}
       <label className="surface-input">
-        Choice
+        <span className="field__label">Choice</span>
         <input value={choice} onChange={(event) => setChoice(event.target.value)} placeholder="approve / reject" />
       </label>
       <div className="surface-actions">
         {wire.actions.map((action) => (
-          <button key={action.id} type="button" onClick={() => void submit(action.id)}>
+          <button key={action.id} type="button" className="btn btn--primary btn--sm" onClick={() => void submit(action.id)}>
             {action.id}
           </button>
         ))}
       </div>
       {result && (
-        <div className={result.ok ? 'typed-accepted' : 'typed-rejection'} role="status">
-          <strong>{result.code}</strong>: {result.message}
-        </div>
+        <Notice tone={result.ok ? 'ok' : 'error'} code={result.code} text={result.message} />
       )}
       <p className="surface-note">
         Actions are validated and executed by the server gate. This client holds no write authority.

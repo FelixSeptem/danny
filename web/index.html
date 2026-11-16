@@ -3,7 +3,25 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Danny workbench</title>
+    <meta name="theme-color" content="#0a0f0d" />
+    <meta name="description" content="Danny personal agent control surface: execution stream, read-only projections and server-approved dynamic surfaces." />
+    <title>Danny · Control Surface</title>
+    <script>
+      // 首屏渲染前应用主题，避免浅色用户看到一帧深色闪屏。
+      // URL 上的 ?theme= 只覆盖本次页面，不写回 localStorage。
+      (function () {
+        var forced = new URLSearchParams(location.search).get('theme');
+        if (forced === 'light' || forced === 'dark') {
+          document.documentElement.dataset.theme = forced;
+          return;
+        }
+        try {
+          if (localStorage.getItem('danny-theme') === 'light') {
+            document.documentElement.dataset.theme = 'light';
+          }
+        } catch (e) { /* 隐私模式：保持默认深色 */ }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
