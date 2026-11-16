@@ -1,54 +1,31 @@
-# Task Execution Harness
+# 任务执行框架
 
-The task execution harness is the application-owned coordination boundary for
-durable task runs. It persists the selected plan before calling Baymax and
-keeps execution recovery independent from Baymax process state and logs.
+任务执行框架是应用方拥有的持久化任务运行协调边界。它在调用 Baymax 之前持久化所选计划，并使执行恢复独立于 Baymax 的进程状态与日志。
 
-## State and repository boundaries
+## 状态与仓储边界
 
-SQLite is the default local store. PostgreSQL uses the same
-`storage.ExecutionRepository` contract. The repository persists:
+SQLite 是默认的本地存储。PostgreSQL 使用相同的 `storage.ExecutionRepository` 契约。该仓储持久化：
 
-- the execution row and its optimistic revision;
-- immutable plan notebook versions and replan lineage;
-- safe-point checkpoints and pause reasons;
-- replan history; and
-- parent and child execution evidence keyed by stable effect keys.
+- 执行记录及其乐观修订版本；
+- 不可变的计划笔记本版本与重新规划血缘；
+- 安全点检查点与暂停原因；
+- 重新规划历史；以及
+- 以稳定效果键索引的父/子执行证据。
 
-Admission writes the execution and initial plan in one database transaction.
-Terminal writes require the expected execution revision. A stale worker gets a
-typed `storage.ErrRevisionConflict` and cannot overwrite a newer pause,
-replan, or terminal result.
+准入在一个数据库事务中写入执行记录与初始计划。终态写入需要期望的执行修订版本。过期的 worker 会得到带类型的 `storage.ErrRevisionConflict`，无法覆盖更新的暂停、重新规划或终态结果。
 
-## Supported modes
+## 支持的模式
 
-The first harness implementation supports `direct` and bounded
-`subagent_fanout`. The planner persists child count and per-child budget, and
-the commit gate requires every planned child to finish successfully. A failed,
-missing, or unauthorized child leaves the execution blocked.
+执行框架的首个实现支持 `direct` 与有界的 `subagent_fanout`。规划器持久化子执行数量与每个子执行的预算，提交闸门要求每个已规划的子执行都成功完成。失败、缺失或未获授权的子执行会让执行停留在阻塞状态。
 
-`team_parallel`, `team_vote`, `workflow`, `mailbox_async`, and `scheduled`
-return a typed unsupported-mode result until their roadmap changes add the
-corresponding durable boundaries. They are never silently downgraded to
-`direct`.
+在路线图变更补齐相应的持久化边界之前，`team_parallel`、`team_vote`、`workflow`、`mailbox_async` 与 `scheduled` 会返回带类型的不支持模式结果。它们绝不会被静默降级为 `direct`。
 
-## Pause, resume, and replan
+## 暂停、恢复与重新规划
 
-Checkpoints retain the run identity, plan version and digest, capability and
-projection digests, current step, pause reason, and completed effect keys.
-Resume validates those values before dispatch. A task revision change is
-converted into an immutable replan version. If the replan expands write
-scope, external effects, or budget, the execution enters
-`approval_required` pause before it can dispatch.
+检查点保留运行身份、计划版本与摘要、能力与投影摘要、当前步骤、暂停原因以及已完成效果键。恢复会在派发之前校验这些值。任务修订版本发生变化时会转换为一个不可变的重新规划版本。如果重新规划扩大了写作用域、外部效果或预算，执行在派发之前会进入 `approval_required` 暂停。
 
-An uncertain parent dispatch is recorded as `recovery_required`. The persisted
-admission idempotency key and correlation identifiers allow a later recovery
-worker to reconcile the external Baymax result without creating a second
-application terminal result.
+不确定的父执行派发会被记录为 `recovery_required`。持久化的准入幂等键与关联标识符让后续的恢复 worker 能够校正外部 Baymax 结果，而不会创建第二个应用侧终态结果。
 
-## Validation
+## 验证
 
-The harness contract is covered by SQLite restart, optimistic concurrency,
-idempotent evidence, planner, pause/resume, replan, fanout failure, and
-unsupported-mode fixtures. PostgreSQL runs the same execution repository
-contract when `DANNY_TEST_POSTGRES_URL` is configured.
+执行框架契约由 SQLite 重启、乐观并发、幂等证据、规划器、暂停/恢复、重新规划、扇出失败与不支持模式等测试夹具（fixture）覆盖。配置 `DANNY_TEST_POSTGRES_URL` 后，PostgreSQL 会运行相同的执行仓储契约。
